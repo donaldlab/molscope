@@ -14,7 +14,7 @@ layout(location = 2) out float outRadiusFramebuf;
 layout(location = 3) out vec4 outColor;
 
 // TODO: make uniform buf for global transformations
-const vec3 windowSize = vec3(640, 480, 10000);
+const vec3 windowSize = vec3(320, 240, 10000);
 
 void emitVertex(vec3 posFramebuf, vec2 radiusFramebuf, vec4 posClip, vec2 deltaClip) {
 	outPosWorld = inPosWorld[0];

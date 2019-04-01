@@ -10,7 +10,7 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 0, r32ui) uniform restrict uimage2D depthBuffer;
 
 // TODO: make uniform buf for global transformations
-const vec3 windowSize = vec3(640, 480, 10000);
+const vec3 windowSize = vec3(320, 240, 10000);
 
 const uint MaxUint = 4294967295;
 

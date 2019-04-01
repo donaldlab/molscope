@@ -14,7 +14,7 @@ layout(binding = 1, std140) uniform restrict readonly ViewBuf {
 };
 
 // TODO: make uniform buf for global transformations
-const vec3 windowSize = vec3(640, 480, 10000);
+const vec3 windowSize = vec3(320, 240, 10000);
 const vec3 translation = vec3(-13, -26, 0);
 const vec3 scale = 160.0/windowSize/2;
 
