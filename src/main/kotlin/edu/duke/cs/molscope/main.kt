@@ -1,60 +1,24 @@
 package edu.duke.cs.molscope
 
-import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
-import edu.duke.cs.molscope.render.SlideRenderer
-import edu.duke.cs.molscope.render.WindowRenderer
 
 
 fun main() = autoCloser {
 
-	// run the window renderer
-	val win =
-		WindowRenderer(
-			width = 800,
-			height = 600,
-			title = "MolScope"
-		)
-		.autoClose()
-
-	// GUI state
-	//val winOpen = Ref.of(true)
-	//val check = Ref.of(false)
-	//var counter = 0
-
-	// TODO: make the slide API cleaner, hide rendering details
+	// open a window
+	val win = Window(
+		width = 800,
+		height = 600,
+		title = "MolScope"
+	).autoClose()
 
 	// prepare a slide
-	val slide = SlideRenderer(
-		win.device,
-		win.graphicsFamily,
-		320,
-		240
-	).autoClose()
-	val slideImageDesc = Imgui.imageDescriptor(slide.imageView, slide.imageSampler).autoClose()
+	// TODO: put something on the slide
+	val slide = Slide("Slide")
+	win.slides.add(slide)
 
-	win.renderLoop(
-		blockRender = {
-
-			// TODO: need anything here?
-		},
-		blockGui = {
-
-			// TEMP: debug window
-			setNextWindowSize(400f, 200f)
-			begin("Rendering info")
-			text("display size: ${Imgui.io.displaySize.width} x ${Imgui.io.displaySize.height}")
-			text("frame time: ${String.format("%.3f", 1000f*Imgui.io.deltaTime)} ms")
-			text("FPS: ${String.format("%.3f", Imgui.io.frameRate)}")
-			end()
-
-			slide.render()
-			begin("Slide")
-			image(slideImageDesc)
-			end()
-		}
-	)
+	win.waitForClose()
 
 } // end of scope here cleans up all autoClose() resources
 

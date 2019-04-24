@@ -6,52 +6,18 @@ import cuchaz.kludge.imgui.context
 import cuchaz.kludge.tools.AutoCloser
 import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.vulkan.*
-import cuchaz.kludge.window.Monitors
-import cuchaz.kludge.window.Size
 import cuchaz.kludge.window.Window
 import cuchaz.kludge.window.Windows
 
 
-class WindowRenderer(
-	title: String = "MolScope",
-	width: Int = 800,
-	height: Int = 600,
+internal class WindowRenderer(
+	val win: Window,
 	var backgroundColor: ColorRGBA = ColorRGBA.Float(0.3f, 0.3f, 0.3f)
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
 	private fun <R:AutoCloseable> R.autoClose() = also { closer.add(this@autoClose) }
 	override fun close() = closer.close()
-
-	init {
-
-		// init the window manager
-		Windows.init()
-		Windows.autoClose()
-
-		// check for vulkan support from the window manager
-		if (!Windows.isVulkanSupported) {
-			throw Error("No Vulkan support from window manager")
-		}
-
-		// listen to problems from the window manager
-		Windows.errors.setOut(System.err)
-	}
-
-	// TODO: we can make all this private, right?
-
-	// make a window and show it
-	// TODO: allow resizing the window
-	val win =
-		Window(
-			size = Size(width, height),
-			title = title
-		)
-		.autoClose()
-		.apply {
-			centerOn(Monitors.primary)
-			visible = true
-		}
 
 	val renderer = Renderer(
 		vulkanExtensions = Windows.requiredVulkanExtensions
@@ -156,65 +122,56 @@ class WindowRenderer(
 	init {
 		// init ImGUI
 		Imgui.load().autoClose()
-		println("ImGUI loaded, version ${Imgui.version}")
 		Imgui.context().autoClose()
 		Imgui.init(win, graphicsQueue, descriptorPool, renderPass)
 		Imgui.initFonts()
 	}
 
+	fun render(blockGui: Commands.() -> Unit) {
 
-	/** main render loop, does not return until the window is closed */
-	fun renderLoop(blockRender: CommandBuffer.() -> Unit, blockGui: Commands.() -> Unit) {
+		Windows.pollEvents()
 
-		while (!win.shouldClose()) {
+		// get the next frame info
+		val imageIndex = swapchain.acquireNextImage(imageAvailable)
+		val framebuffer = framebuffers[imageIndex]
+		val commandBuffer = commandBuffers[imageIndex]
 
-			Windows.pollEvents()
-
-			// get the next frame info
-			val imageIndex = swapchain.acquireNextImage(imageAvailable)
-			val framebuffer = framebuffers[imageIndex]
-			val commandBuffer = commandBuffers[imageIndex]
-
-			// define the gui for this frame
-			Imgui.frame {
-				blockGui()
-			}
-
-			// record the command buffer every frame
-			commandBuffer.apply {
-				begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
-
-				blockRender()
-
-				// draw the GUI in one render pass
-				beginRenderPass(
-					renderPass,
-					framebuffer,
-					swapchain.rect,
-					clearValues = mapOf(
-						colorAttachment to backgroundColor.toClearColor()
-					)
-				)
-				Imgui.draw(this)
-				endRenderPass()
-				end()
-			}
-
-			// render the frame
-			graphicsQueue.submit(
-				commandBuffers[imageIndex],
-				waitFor = listOf(Queue.WaitInfo(imageAvailable, IntFlags.of(PipelineStage.ColorAttachmentOutput))),
-				signalTo = listOf(renderFinished)
-			)
-			surfaceQueue.present(
-				swapchain,
-				imageIndex,
-				waitFor = renderFinished
-			)
-			surfaceQueue.waitForIdle()
+		// define the gui for this frame
+		Imgui.frame {
+			blockGui()
 		}
 
-		// wait for the device to finish before returning
-		device.waitForIdle()
+		// record the command buffer every frame
+		commandBuffer.apply {
+			begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
+
+			// draw the GUI in one render pass
+			beginRenderPass(
+				renderPass,
+				framebuffer,
+				swapchain.rect,
+				clearValues = mapOf(
+					colorAttachment to backgroundColor.toClearColor()
+				)
+			)
+			Imgui.draw(this)
+			endRenderPass()
+			end()
+		}
+
+		// render the frame
+		graphicsQueue.submit(
+			commandBuffers[imageIndex],
+			waitFor = listOf(Queue.WaitInfo(imageAvailable, IntFlags.of(PipelineStage.ColorAttachmentOutput))),
+			signalTo = listOf(renderFinished)
+		)
+		surfaceQueue.present(
+			swapchain,
+			imageIndex,
+			waitFor = renderFinished
+		)
+		surfaceQueue.waitForIdle()
 	}
+
+	fun waitForIdle() = device.waitForIdle()
 }

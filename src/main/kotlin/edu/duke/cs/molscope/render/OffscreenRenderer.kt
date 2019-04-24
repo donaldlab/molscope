@@ -3,7 +3,7 @@ package edu.duke.cs.molscope.render
 import cuchaz.kludge.tools.AutoCloser
 
 
-class HeadlessRenderer(
+class OffscreenRenderer(
 	val renderer: Renderer
 ) : AutoCloseable {
 
