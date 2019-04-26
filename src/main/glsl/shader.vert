@@ -1,31 +1,34 @@
 #version 450
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in float inRadius;
+layout(location = 0) in vec3 inPosWorld;
+layout(location = 1) in float inRadiusWorld;
 layout(location = 2) in vec4 inColor;
 
-layout(location = 0) out vec3 outPosWorld;
-layout(location = 1) out float outRadiusWorld;
+layout(location = 1) out float outRadiusCamera;
 layout(location = 2) out vec2 outRadiusClip;
 layout(location = 3) out vec4 outColor;
 
-layout(binding = 1, std140) uniform restrict readonly ViewBuf {
-	float angle;
-};
+#include "view.glsl"
 
-// TODO: make uniform buf for global transformations
-const vec3 windowSize = vec3(320, 240, 10000);
+/* atom coords:
+	x in [11,16]  w=5
+	y in [24,28]  w=4
+	z in [23,27]  w=4
+*/
+const vec3 center = vec3(11+16, 24+28, 23+27)/2;
 const vec3 translation = vec3(-13, -26, 0);
-const vec3 scale = 160.0/windowSize/2;
 
-const float PI = 3.141592653589793; // probably more than enough precision
 
 void main() {
 
-	vec3 pos = inPosition;
+	// NOTE: vertex shaders convert from world space posto clip space
+	// via world -> camera -> NDC -> clip
+
+	// TODO: optimize calculations
+
+	vec3 posWorld = inPosWorld;
 
 	// TEMP: apply rotation to vertices
-	vec3 center = vec3(13, 24, 24);
 	float cosa = cos(angle);
 	float sina = sin(angle);
 	mat3 rot = mat3(
@@ -33,14 +36,35 @@ void main() {
 		  0.0, 1.0,  0.0,
 		-sina, 0.0, cosa
 	);
-	pos = rot*(pos - center) + center;
+	posWorld = rot*(posWorld - center) + center;
 
-	// convert to clip space
-	vec3 posClip = (pos + translation)*scale;
+	// TODO: simplify the arithmetic
 
-	outPosWorld = pos;
-	outRadiusWorld = inRadius;
-	gl_Position = vec4(posClip, 1.0);
-	outRadiusClip = outRadiusWorld*scale.xy;
+	// transform into camera space
+	// TODO: do proper view transformation
+	vec3 posCamera = posWorld - center + vec3(0, 0, -20);
+
+	// convert to NDC (normalized device coords) space:
+	// ie   x in [-1,1]   y in [-1,1]   z in [0,1]
+	// and a right-handed axis system: x+right, y+down, z+away
+	// aka, do perspective projection
+	vec2 viewSize = windowSize/magnification;
+	float dx = 2*zNearCamera/viewSize.x/posCamera.z*posCamera.x;
+	float dy = -2*zNearCamera/viewSize.y/posCamera.z*posCamera.y;
+	float dz = (posCamera.z - zNearCamera)/(zFarCamera - zNearCamera);
+	vec3 posNDC = vec3(dx, dy, dz);
+	vec2 radiusNDC = vec2(
+		2*zNearCamera/viewSize.x/posCamera.z*inRadiusWorld,
+		2*zNearCamera/viewSize.y/posCamera.z*inRadiusWorld
+	);
+
+	// convert to clip space by lifting to homogeneous coords
+	vec4 posClip = vec4(posNDC, 1);
+	vec2 radiusClip = radiusNDC;
+
+	// send outputs to next shader stages
+	gl_Position = posClip;
+	outRadiusCamera = inRadiusWorld;
+	outRadiusClip = radiusClip;
 	outColor = inColor;
 }

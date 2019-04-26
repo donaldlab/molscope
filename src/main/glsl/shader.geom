@@ -3,45 +3,40 @@
 layout(points) in;
 layout(triangle_strip, max_vertices = 4) out;
 
-layout(location = 0) in vec3 inPosWorld[];
-layout(location = 1) in float inRadiusWorld[];
+layout(location = 1) in float inRadiusCamera[];
 layout(location = 2) in vec2 inRadiusClip[];
 layout(location = 3) in vec4 inColor[];
 
-layout(location = 0) out vec3 outPosWorld;
-layout(location = 1) out vec3 outPosFramebuf;
-layout(location = 2) out float outRadiusFramebuf;
+
+layout(location = 0) out float outRadiusCamera;
+layout(location = 1) out float outZClip;
+layout(location = 2) out vec2 outPosFramebuf;
 layout(location = 3) out vec4 outColor;
 
-// TODO: make uniform buf for global transformations
-const vec3 windowSize = vec3(320, 240, 10000);
+#include "view.glsl"
 
-void emitVertex(vec3 posFramebuf, vec2 radiusFramebuf, vec4 posClip, vec2 deltaClip) {
-	outPosWorld = inPosWorld[0];
-	outPosFramebuf = posFramebuf;
-	outRadiusFramebuf = radiusFramebuf.x;
-	outColor = inColor[0];
+
+void emitVertex(vec4 posClip, vec2 deltaClip, vec2 posFramebuf) {
 	gl_Position = posClip + vec4(deltaClip, 0, 0);
+	outRadiusCamera = inRadiusCamera[0];
+	outZClip = posClip.z;
+	outPosFramebuf = posFramebuf;
+	outColor = inColor[0];
 	EmitVertex();
 }
 
 void main() {
 
-	// transform the position
+	// NOTE: geometry shaders operate entirely in clip space
+
+	// transform the position from clip space into framebuffer space
 	vec4 posClip = gl_in[0].gl_Position;
-	vec3 posFramebuf = (posClip.xyz + vec3(1))*windowSize/2;
-
-	// transform the radius
-	vec2 radiusClip = inRadiusClip[0];
-	vec2 radiusFramebuf = radiusClip*windowSize.xy/2;
-
-	// redo the clip radius with 2 extra pixels for anti-aliasing
-	radiusClip = (radiusFramebuf + vec2(2))*2/windowSize.xy;
+	vec2 posFramebuf = (posClip.xy + vec2(1))*windowSize/2;
 
 	// emit the four vertices of a billboard quad, in triangle strip order, with ccw facing
-	emitVertex(posFramebuf, radiusFramebuf, posClip, vec2(+radiusClip.x, +radiusClip.y));
-	emitVertex(posFramebuf, radiusFramebuf, posClip, vec2(+radiusClip.x, -radiusClip.y));
-	emitVertex(posFramebuf, radiusFramebuf, posClip, vec2(-radiusClip.x, +radiusClip.y));
-	emitVertex(posFramebuf, radiusFramebuf, posClip, vec2(-radiusClip.x, -radiusClip.y));
+	emitVertex(posClip, vec2(+inRadiusClip[0].x, +inRadiusClip[0].y), posFramebuf);
+	emitVertex(posClip, vec2(+inRadiusClip[0].x, -inRadiusClip[0].y), posFramebuf);
+	emitVertex(posClip, vec2(-inRadiusClip[0].x, +inRadiusClip[0].y), posFramebuf);
+	emitVertex(posClip, vec2(-inRadiusClip[0].x, -inRadiusClip[0].y), posFramebuf);
 	EndPrimitive();
 }

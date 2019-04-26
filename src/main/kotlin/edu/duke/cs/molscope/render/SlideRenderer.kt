@@ -3,7 +3,6 @@ package edu.duke.cs.molscope.render
 import cuchaz.kludge.tools.AutoCloser
 import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.tools.SIZE_BYTES
-import cuchaz.kludge.tools.autoCloser
 import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.Element
 import java.nio.file.Paths
@@ -66,11 +65,7 @@ class SlideRenderer(
 			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Sampled)
 		)
 		.autoClose()
-		.allocate { memType ->
-			memType.flags.hasAll(IntFlags.of(
-				MemoryType.Flags.DeviceLocal
-			))
-		}
+		.allocateDevice()
 		.autoClose()
 	val imageView = image.image.view().autoClose()
 	val imageSampler = device.sampler().autoClose()
@@ -93,28 +88,18 @@ class SlideRenderer(
 			usage = IntFlags.of(Image.Usage.TransferDst, Image.Usage.Storage)
 		)
 		.autoClose()
-		.allocate { memType ->
-			memType.flags.hasAll(IntFlags.of(
-				MemoryType.Flags.DeviceLocal
-			))
-		}
+		.allocateDevice()
 		.autoClose()
 	val depthBufferView = depthBuffer.image.view().autoClose()
 
 	// make a uniform buf for the view transformations
-	// TODO: optimize memory usage for this buffer? Or use push constants?
 	val viewBuf = device
 		.buffer(
-			size = Float.SIZE_BYTES.toLong(),
+			size = 6*Float.SIZE_BYTES.toLong(),
 			usage = IntFlags.of(Buffer.Usage.UniformBuffer, Buffer.Usage.TransferDst)
 		)
 		.autoClose()
-		.allocate { memType ->
-			memType.flags.hasAll(IntFlags.of(
-				MemoryType.Flags.HostVisible,
-				MemoryType.Flags.HostCoherent
-			))
-		}
+		.allocateDevice()
 		.autoClose()
 
 	// make the descriptor pool
@@ -135,7 +120,7 @@ class SlideRenderer(
 	val viewBufBinding = DescriptorSetLayout.Binding(
 		binding = 1,
 		type = DescriptorType.UniformBuffer,
-		stages = IntFlags.of(ShaderStage.Vertex)
+		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Geometry, ShaderStage.Fragment)
 	)
 	val descriptorSetLayout = device.descriptorSetLayout(listOf(
 		depthBufBinding, viewBufBinding
@@ -243,80 +228,53 @@ class SlideRenderer(
 			usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
 		)
 		.autoClose()
-		.allocate { memType ->
-			memType.flags.hasAll(IntFlags.of(
-				MemoryType.Flags.DeviceLocal
-			))
-		}
+		.allocateDevice()
 		.autoClose()
+		.apply {
 
-	init {
+			// upload geometry to the vertex buffer
+			transferHtoD { buf ->
 
-		// upload geometry to the vertex buffer
-		autoCloser {
-			graphicsQueue.submit(commandPool.buffer().apply {
-				begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
+				fun putAtom(x: Float, y: Float, z: Float, element: Element) {
 
-				// allocate a staging buffer and write vertex data to it
-				val stagingBuf = device
-					.buffer(
-						vertexBuf.buffer.size,
-						IntFlags.of(Buffer.Usage.TransferSrc)
-					)
-					.autoClose()
-					.allocate { memType ->
-						memType.flags.hasAll(IntFlags.of(
-							MemoryType.Flags.HostVisible,
-							MemoryType.Flags.HostCoherent
-						))
-					}
-					.autoClose()
-					.apply {
-						memory.map { buf ->
+					buf.putFloat(x)
+					buf.putFloat(y)
+					buf.putFloat(z)
+					buf.putFloat(element.radius)
+					buf.putColor4Bytes(element.color)
+				}
 
-							fun putAtom(x: Float, y: Float, z: Float, element: Element) {
+				// an N-terminal alanine
+				putAtom(14.699f, 27.060f, 24.044f, Element.Nitrogen)
+				putAtom(15.468f, 27.028f, 24.699f, Element.Hydrogen)
+				putAtom(15.072f, 27.114f, 23.102f, Element.Hydrogen)
+				putAtom(14.136f, 27.880f, 24.237f, Element.Hydrogen)
+				putAtom(13.870f, 25.845f, 24.199f, Element.Carbon)
+				putAtom(14.468f, 24.972f, 23.937f, Element.Hydrogen)
+				putAtom(13.449f, 25.694f, 25.672f, Element.Carbon)
+				putAtom(12.892f, 24.768f, 25.807f, Element.Hydrogen)
+				putAtom(14.334f, 25.662f, 26.307f, Element.Hydrogen)
+				putAtom(12.825f, 26.532f, 25.978f, Element.Hydrogen)
+				putAtom(12.685f, 25.887f, 23.222f, Element.Carbon)
+				putAtom(11.551f, 25.649f, 23.607f, Element.Oxygen)
 
-								buf.putFloat(x)
-								buf.putFloat(y)
-								buf.putFloat(z)
-								buf.putFloat(element.radius)
-								buf.putColor4Bytes(element.color)
-							}
-
-							// an N-terminal alanine
-							putAtom(14.699f, 27.060f, 24.044f, Element.Nitrogen)
-							putAtom(15.468f, 27.028f, 24.699f, Element.Hydrogen)
-							putAtom(15.072f, 27.114f, 23.102f, Element.Hydrogen)
-							putAtom(14.136f, 27.880f, 24.237f, Element.Hydrogen)
-							putAtom(13.870f, 25.845f, 24.199f, Element.Carbon)
-							putAtom(14.468f, 24.972f, 23.937f, Element.Hydrogen)
-							putAtom(13.449f, 25.694f, 25.672f, Element.Carbon)
-							putAtom(12.892f, 24.768f, 25.807f, Element.Hydrogen)
-							putAtom(14.334f, 25.662f, 26.307f, Element.Hydrogen)
-							putAtom(12.825f, 26.532f, 25.978f, Element.Hydrogen)
-							putAtom(12.685f, 25.887f, 23.222f, Element.Carbon)
-							putAtom(11.551f, 25.649f, 23.607f, Element.Oxygen)
-
-							buf.flip()
-						}
-					}
-
-				copyBuffer(stagingBuf.buffer, vertexBuf.buffer)
-
-				end()
-			})
-			graphicsQueue.waitForIdle()
+				buf.flip()
+			}
 		}
-	}
 
 	private val startTime = System.currentTimeMillis()
 
 	fun render(renderFinished: Semaphore? = null) {
 
 		// update the view buffer
-		viewBuf.memory.map { buf ->
+		viewBuf.transferHtoD { buf ->
 			val seconds = (System.currentTimeMillis() - startTime).toFloat()/1000
 			buf.putFloat(Math.PI.toFloat()/3f*seconds)
+			buf.putFloat(-20f + 4f) // z near, in camera space
+			buf.putFloat(-20f - 4f) // z far
+			buf.putFloat(40f) // magnification
+			buf.putFloat(320f) // win x
+			buf.putFloat(240f) // win y
 			buf.flip()
 		}
 

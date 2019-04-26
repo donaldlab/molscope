@@ -56,8 +56,7 @@ tasks {
 					exec {
 						this.workingDir = outDir
 						commandLine(
-							"glslangValidator",
-							"-V",
+							"glslc",
 							"-o", outFile.path,
 							inFile.absolutePath
 						)
