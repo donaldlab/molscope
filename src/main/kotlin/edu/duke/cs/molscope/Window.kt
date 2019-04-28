@@ -2,7 +2,10 @@ package edu.duke.cs.molscope
 
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.AutoCloser
+import cuchaz.kludge.tools.Ref
 import cuchaz.kludge.vulkan.ColorRGBA
+import cuchaz.kludge.vulkan.Semaphore
+import cuchaz.kludge.vulkan.semaphore
 import cuchaz.kludge.window.Monitors
 import cuchaz.kludge.window.Size
 import cuchaz.kludge.window.Window as KWindow
@@ -130,24 +133,31 @@ internal class WindowThread(
 
 	val renderer = WindowRenderer(win).autoClose()
 
+	val slidesSemaphore = renderer.device.semaphore().autoClose()
+
 	fun renderLoop() {
 
 		while (!renderer.win.shouldClose) {
 			synchronized(this) {
 
-				renderer.render {
+				// render the slides
+				for (info in slides.values) {
+					info.renderer.render(info.semaphore)
+				}
+
+				// render the window
+				renderer.render(slides.values.map { it.semaphore }) {
 
 					// TEMP: debug window
 					setNextWindowSize(400f, 200f)
 					begin("Rendering info")
 					text("display size: ${Imgui.io.displaySize.width} x ${Imgui.io.displaySize.height}")
-					text("frame time: ${String.format("%.3f", 1000f* Imgui.io.deltaTime)} ms")
+					text("frame time: ${String.format("%.3f", 1000f*Imgui.io.deltaTime)} ms")
 					text("FPS: ${String.format("%.3f", Imgui.io.frameRate)}")
 					end()
 
-					// render slides
+					// draw the slides on the window
 					for (info in slides.values) {
-						info.renderer.render()
 						begin(info.slide.name)
 						image(info.imageDesc)
 						end()
@@ -174,6 +184,8 @@ internal class WindowThread(
 			240
 		).autoClose()
 
+		val semaphore = renderer.device.semaphore().autoClose()
+
 		val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose()
 	}
 
@@ -185,9 +197,12 @@ internal class WindowThread(
 			}
 			clear()
 		}
+	val slideSemaphores = ArrayList<Semaphore>()
 
 	fun addSlide(slide: Slide) {
-		slides[slide] = SlideInfo(slide)
+		if (!slides.containsKey(slide)) {
+			slides[slide] = SlideInfo(slide)
+		}
 	}
 
 	fun removeSlide(slide: Slide) {

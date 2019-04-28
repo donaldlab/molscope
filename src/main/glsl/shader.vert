@@ -10,14 +10,6 @@ layout(location = 3) out vec4 outColor;
 
 #include "view.glsl"
 
-/* atom coords:
-	x in [11,16]  w=5
-	y in [24,28]  w=4
-	z in [23,27]  w=4
-*/
-const vec3 center = vec3(11+16, 24+28, 23+27)/2;
-const vec3 translation = vec3(-13, -26, 0);
-
 
 void main() {
 
@@ -26,23 +18,13 @@ void main() {
 
 	// TODO: optimize calculations
 
-	vec3 posWorld = inPosWorld;
-
-	// TEMP: apply rotation to vertices
-	float cosa = cos(angle);
-	float sina = sin(angle);
-	mat3 rot = mat3(
-		 cosa, 0.0, sina,
-		  0.0, 1.0,  0.0,
-		-sina, 0.0, cosa
-	);
-	posWorld = rot*(posWorld - center) + center;
-
-	// TODO: simplify the arithmetic
-
 	// transform into camera space
-	// TODO: do proper view transformation
-	vec3 posCamera = posWorld - center + vec3(0, 0, -20);
+	vec3 posCamera = inPosWorld - cameraWorld;
+	posCamera = vec3(
+		dot(cameraSide, posCamera),
+		dot(cameraUp, posCamera),
+		dot(cameraLook, posCamera)
+	);
 
 	// convert to NDC (normalized device coords) space:
 	// ie   x in [-1,1]   y in [-1,1]   z in [0,1]

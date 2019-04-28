@@ -115,10 +115,6 @@ internal class WindowRenderer(
 		)
 	).autoClose()
 
-	// make semaphores for command buffer synchronization
-	val imageAvailable = device.semaphore().autoClose()
-	val renderFinished = device.semaphore().autoClose()
-
 	init {
 		// init ImGUI
 		Imgui.load().autoClose()
@@ -127,7 +123,11 @@ internal class WindowRenderer(
 		Imgui.initFonts()
 	}
 
-	fun render(blockGui: Commands.() -> Unit) {
+	// make semaphores for command buffer synchronization
+	private val imageAvailable = device.semaphore().autoClose()
+	private val renderFinished = device.semaphore().autoClose()
+
+	fun render(waitFor: List<Semaphore>? = null, blockGui: Commands.() -> Unit) {
 
 		Windows.pollEvents()
 
@@ -159,10 +159,18 @@ internal class WindowRenderer(
 			end()
 		}
 
+		// what are we waiting for?
+		val waitSemaphores = mutableListOf(Queue.WaitInfo(imageAvailable, IntFlags.of(PipelineStage.ColorAttachmentOutput)))
+		if (waitFor != null) {
+			for (semaphore in waitFor) {
+				waitSemaphores.add(Queue.WaitInfo(semaphore, IntFlags.of(PipelineStage.ColorAttachmentOutput)))
+			}
+		}
+
 		// render the frame
 		graphicsQueue.submit(
 			commandBuffers[imageIndex],
-			waitFor = listOf(Queue.WaitInfo(imageAvailable, IntFlags.of(PipelineStage.ColorAttachmentOutput))),
+			waitFor = waitSemaphores,
 			signalTo = listOf(renderFinished)
 		)
 		surfaceQueue.present(

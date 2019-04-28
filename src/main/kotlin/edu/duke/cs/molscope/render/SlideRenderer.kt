@@ -1,10 +1,10 @@
 package edu.duke.cs.molscope.render
 
-import cuchaz.kludge.tools.AutoCloser
-import cuchaz.kludge.tools.IntFlags
-import cuchaz.kludge.tools.SIZE_BYTES
+import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.Element
+import org.joml.AABBf
+import org.joml.Vector3f
 import java.nio.file.Paths
 
 
@@ -30,18 +30,27 @@ class SlideRenderer(
 			format = Image.Format.R8G8B8A8_UNORM,
 			loadOp = LoadOp.Clear,
 			storeOp = StoreOp.Store,
+			// finish this on ShaderReadOnlyOptimal, so WindowRenderer can sample it
 			finalLayout = Image.Layout.ShaderReadOnlyOptimal
+		)
+	val depthAttachment =
+		Attachment(
+			format = Image.Format.D32_SFLOAT,
+			loadOp = LoadOp.Clear,
+			storeOp = StoreOp.Store,
+			finalLayout = Image.Layout.DepthStencilAttachmentOptimal
 		)
 	val subpass =
 		Subpass(
 			pipelineBindPoint = PipelineBindPoint.Graphics,
 			colorAttachments = listOf(
 				colorAttachment to Image.Layout.ColorAttachmentOptimal
-			)
+			),
+			depthStencilAttachment = depthAttachment to Image.Layout.DepthStencilAttachmentOptimal
 		)
 	val renderPass = device
 		.renderPass(
-			attachments = listOf(colorAttachment),
+			attachments = listOf(colorAttachment, depthAttachment),
 			subpasses = listOf(subpass),
 			subpassDependencies = listOf(
 				SubpassDependency(
@@ -70,60 +79,101 @@ class SlideRenderer(
 	val imageView = image.image.view().autoClose()
 	val imageSampler = device.sampler().autoClose()
 
+	// make the depth buffer
+	val depth = device
+		.image(
+			Image.Type.TwoD,
+			extent.to3D(1),
+			depthAttachment.format,
+			IntFlags.of(Image.Usage.DepthStencilAttachment),
+			tiling = Image.Tiling.Optimal // need "optimal" tiling for depth buffers
+		)
+		.autoClose()
+		.allocateDevice()
+		.autoClose()
+	val depthView = depth.image.view(
+		range = Image.SubresourceRange(aspectMask = IntFlags.of(Image.Aspect.Depth))
+	).autoClose()
+
 	// make a framebuffer
 	val framebuffer = device
 		.framebuffer(
 			renderPass,
-			imageViews = listOf(imageView),
+			imageViews = listOf(imageView, depthView),
 			extent = extent
 		)
 		.autoClose()
 
-	// allocate a depth buffer on the GPU
-	val depthBuffer = device.
-		image(
-			type = Image.Type.TwoD,
-			extent = extent.to3D(1),
-			format = Image.Format.R32_UINT,
-			usage = IntFlags.of(Image.Usage.TransferDst, Image.Usage.Storage)
-		)
-		.autoClose()
-		.allocateDevice()
-		.autoClose()
-	val depthBufferView = depthBuffer.image.view().autoClose()
+	// TEMP: an N-terminal alanine
+	data class Atom(val x: Float, val y: Float, val z: Float, val element: Element)
+	val atoms = listOf(
+		Atom(14.699f, 27.060f, 24.044f, Element.Nitrogen),
+		Atom(15.468f, 27.028f, 24.699f, Element.Hydrogen),
+		Atom(15.072f, 27.114f, 23.102f, Element.Hydrogen),
+		Atom(14.136f, 27.880f, 24.237f, Element.Hydrogen),
+		Atom(13.870f, 25.845f, 24.199f, Element.Carbon),
+		Atom(14.468f, 24.972f, 23.937f, Element.Hydrogen),
+		Atom(13.449f, 25.694f, 25.672f, Element.Carbon),
+		Atom(12.892f, 24.768f, 25.807f, Element.Hydrogen),
+		Atom(14.334f, 25.662f, 26.307f, Element.Hydrogen),
+		Atom(12.825f, 26.532f, 25.978f, Element.Hydrogen),
+		Atom(12.685f, 25.887f, 23.222f, Element.Carbon),
+		Atom(11.551f, 25.649f, 23.607f, Element.Oxygen)
+	)
 
-	// make a uniform buf for the view transformations
-	val viewBuf = device
-		.buffer(
-			size = 6*Float.SIZE_BYTES.toLong(),
-			usage = IntFlags.of(Buffer.Usage.UniformBuffer, Buffer.Usage.TransferDst)
-		)
+	// make a camera
+	val camera = Camera(device)
 		.autoClose()
-		.allocateDevice()
-		.autoClose()
+		.apply {
+
+			// compute the atom bounding box
+			val box = atoms[0].run {
+				AABBf(
+					x, y, z,
+					x, y, z
+				)
+			}
+			for (atom in atoms) {
+				box.expandToInclude(
+					atom.x - atom.element.radius,
+					atom.y - atom.element.radius,
+					atom.z - atom.element.radius
+				)
+				box.expandToInclude(
+					atom.x + atom.element.radius,
+					atom.y + atom.element.radius,
+					atom.z + atom.element.radius
+				)
+			}
+
+			// add a little padding to give the box some breathing room
+			box.expand(1f)
+
+			lookAtBox(
+				width, height,
+				focalLength = 200f,
+				look = Vector3f(0f, 0f, 1f),
+				up = Vector3f(0f, 1f, 0f),
+				box = box
+			)
+		}
 
 	// make the descriptor pool
 	val descriptorPool = device.descriptorPool(
 		maxSets = 1,
 		sizes = DescriptorType.Counts(
-			DescriptorType.StorageImage to 1,
 			DescriptorType.UniformBuffer to 1
 		)
 	).autoClose()
 
 	// build the descriptor set layout
-	val depthBufBinding = DescriptorSetLayout.Binding(
-		binding = 0,
-		type = DescriptorType.StorageImage,
-		stages = IntFlags.of(ShaderStage.Fragment)
-	)
 	val viewBufBinding = DescriptorSetLayout.Binding(
-		binding = 1,
+		binding = 0,
 		type = DescriptorType.UniformBuffer,
 		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Geometry, ShaderStage.Fragment)
 	)
 	val descriptorSetLayout = device.descriptorSetLayout(listOf(
-		depthBufBinding, viewBufBinding
+		viewBufBinding
 	)).autoClose()
 
 	// make the descriptor set
@@ -142,17 +192,9 @@ class SlideRenderer(
 		// update the descriptor set
 		device.updateDescriptorSets(
 			writes = listOf(
-				descriptorSet.address(depthBufBinding).write(
-					images = listOf(
-						DescriptorSet.ImageInfo(
-							view = depthBufferView,
-							layout = Image.Layout.General
-						)
-					)
-				),
 				descriptorSet.address(viewBufBinding).write(
 					buffers = listOf(
-						DescriptorSet.BufferInfo(viewBuf.buffer)
+						DescriptorSet.BufferInfo(camera.buf.buffer)
 					)
 				)
 			)
@@ -205,7 +247,7 @@ class SlideRenderer(
 			extent.height.toFloat()
 		)),
 		scissors = listOf(rect),
-		attachmentBlends = listOf(
+		colorAttachmentBlends = mapOf(
 			colorAttachment to ColorBlendState.Attachment(
 				color = ColorBlendState.Attachment.Part(
 					src = BlendFactor.SrcAlpha,
@@ -218,13 +260,14 @@ class SlideRenderer(
 					op = BlendOp.Max
 				)
 			)
-		)
+		),
+		depthStencilState = DepthStencilState()
 	).autoClose()
 
 	// allocate the vertex buffer on the GPU
 	val vertexBuf = device.
 		buffer(
-			size = graphicsPipeline.vertexInput.size*12,
+			size = graphicsPipeline.vertexInput.size*atoms.size,
 			usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
 		)
 		.autoClose()
@@ -235,55 +278,27 @@ class SlideRenderer(
 			// upload geometry to the vertex buffer
 			transferHtoD { buf ->
 
-				fun putAtom(x: Float, y: Float, z: Float, element: Element) {
-
-					buf.putFloat(x)
-					buf.putFloat(y)
-					buf.putFloat(z)
-					buf.putFloat(element.radius)
-					buf.putColor4Bytes(element.color)
+				for (atom in atoms) {
+					buf.putFloat(atom.x)
+					buf.putFloat(atom.y)
+					buf.putFloat(atom.z)
+					buf.putFloat(atom.element.radius)
+					buf.putColor4Bytes(atom.element.color)
 				}
-
-				// an N-terminal alanine
-				putAtom(14.699f, 27.060f, 24.044f, Element.Nitrogen)
-				putAtom(15.468f, 27.028f, 24.699f, Element.Hydrogen)
-				putAtom(15.072f, 27.114f, 23.102f, Element.Hydrogen)
-				putAtom(14.136f, 27.880f, 24.237f, Element.Hydrogen)
-				putAtom(13.870f, 25.845f, 24.199f, Element.Carbon)
-				putAtom(14.468f, 24.972f, 23.937f, Element.Hydrogen)
-				putAtom(13.449f, 25.694f, 25.672f, Element.Carbon)
-				putAtom(12.892f, 24.768f, 25.807f, Element.Hydrogen)
-				putAtom(14.334f, 25.662f, 26.307f, Element.Hydrogen)
-				putAtom(12.825f, 26.532f, 25.978f, Element.Hydrogen)
-				putAtom(12.685f, 25.887f, 23.222f, Element.Carbon)
-				putAtom(11.551f, 25.649f, 23.607f, Element.Oxygen)
-
 				buf.flip()
 			}
 		}
 
-	private val startTime = System.currentTimeMillis()
-
 	fun render(renderFinished: Semaphore? = null) {
 
 		// update the view buffer
-		viewBuf.transferHtoD { buf ->
-			val seconds = (System.currentTimeMillis() - startTime).toFloat()/1000
-			buf.putFloat(Math.PI.toFloat()/3f*seconds)
-			buf.putFloat(-20f + 4f) // z near, in camera space
-			buf.putFloat(-20f - 4f) // z far
-			buf.putFloat(40f) // magnification
-			buf.putFloat(320f) // win x
-			buf.putFloat(240f) // win y
-			buf.flip()
-		}
+		camera.upload()
 
 		// record the command buffer
 		commandBuffer.apply {
 			begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
 
-			// transition images before render
-			// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#synchronization-access-types-supported
+			// get the framebuffer attachments ready for rendering
 			pipelineBarrier(
 				srcStage = IntFlags.of(PipelineStage.TopOfPipe),
 				dstStage = IntFlags.of(PipelineStage.ColorAttachmentOutput),
@@ -296,20 +311,14 @@ class SlideRenderer(
 			)
 			pipelineBarrier(
 				srcStage = IntFlags.of(PipelineStage.TopOfPipe),
-				dstStage = IntFlags.of(PipelineStage.FragmentShader),
+				dstStage = IntFlags.of(PipelineStage.EarlyFragmentTests),
 				images = listOf(
-					depthBuffer.image.barrier(
-						dstAccess = IntFlags.of(Access.ShaderRead, Access.ShaderWrite),
-						newLayout = Image.Layout.General
+					depth.image.barrier(
+						dstAccess = IntFlags.of(Access.DepthStencilAttachmentRead, Access.DepthStencilAttachmentWrite),
+						newLayout = Image.Layout.DepthStencilAttachmentOptimal,
+						range = Image.SubresourceRange(aspectMask = IntFlags.of(Image.Aspect.Depth))
 					)
 				)
-			)
-
-			// clear the depth buffer to the max depth
-			clearImage(
-				depthBuffer.image,
-				Image.Layout.General,
-				ClearValue.Color.Int(-1, 0, 0, 0) // -1 is the signed int that maps to the max unsigned int
 			)
 
 			beginRenderPass(
@@ -317,7 +326,8 @@ class SlideRenderer(
 				framebuffer,
 				rect,
 				clearValues = mapOf(
-					colorAttachment to backgroundColor.toClearColor()
+					colorAttachment to backgroundColor.toClearColor(),
+					depthAttachment to ClearValue.DepthStencil(depth = 1f)
 				)
 			)
 
@@ -325,7 +335,7 @@ class SlideRenderer(
 			bindPipeline(graphicsPipeline)
 			bindDescriptorSet(descriptorSet, graphicsPipeline)
 			bindVertexBuffer(vertexBuf.buffer)
-			draw(vertices = 12)
+			draw(vertices = atoms.size)
 
 			endRenderPass()
 			end()
