@@ -129,6 +129,44 @@ class Camera internal constructor(
 		up.rotate(q)
 		look.rotate(q)
 	}
+
+	inner class Rotator {
+
+		val camera = this@Camera
+
+		// copy the internal state
+		val pos = Vector3f()
+		val side = Vector3f()
+		val up = Vector3f()
+		val look = Vector3f()
+
+		val q = Quaternionf()
+
+		init {
+			capture()
+		}
+
+		fun capture() {
+
+			// copy the internal state
+			pos.set(camera.pos)
+			side.set(camera.side)
+			up.set(camera.up)
+			look.set(camera.look)
+		}
+
+		fun update() {
+
+			// restore the internal state
+			camera.pos.set(pos)
+			camera.side.set(side)
+			camera.up.set(up)
+			camera.look.set(look)
+
+			// then apply the rotation
+			camera.rotate(q)
+		}
+	}
 }
 
 fun Vector3f.worldToCamera(camera: Camera) = this

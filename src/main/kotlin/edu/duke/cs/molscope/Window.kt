@@ -1,8 +1,8 @@
 package edu.duke.cs.molscope
 
+import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.AutoCloser
-import cuchaz.kludge.tools.Ref
 import cuchaz.kludge.vulkan.ColorRGBA
 import cuchaz.kludge.vulkan.Semaphore
 import cuchaz.kludge.vulkan.semaphore
@@ -10,9 +10,13 @@ import cuchaz.kludge.window.Monitors
 import cuchaz.kludge.window.Size
 import cuchaz.kludge.window.Window as KWindow
 import cuchaz.kludge.window.Windows
+import edu.duke.cs.molscope.render.Camera
 import edu.duke.cs.molscope.render.SlideRenderer
 import edu.duke.cs.molscope.render.WindowRenderer
+import org.joml.Vector2f
 import java.util.concurrent.CountDownLatch
+import kotlin.math.abs
+import kotlin.math.atan2
 
 
 class Window(
@@ -148,6 +152,14 @@ internal class WindowThread(
 				// render the window
 				renderer.render(slides.values.map { it.semaphore }) {
 
+					// TEMP: demo window
+					//showDemoWindow()
+
+					// draw the slides on the window
+					for (info in slides.values) {
+						info.gui(this)
+					}
+
 					// TEMP: debug window
 					setNextWindowSize(400f, 200f)
 					begin("Rendering info")
@@ -155,13 +167,6 @@ internal class WindowThread(
 					text("frame time: ${String.format("%.3f", 1000f*Imgui.io.deltaTime)} ms")
 					text("FPS: ${String.format("%.3f", Imgui.io.frameRate)}")
 					end()
-
-					// draw the slides on the window
-					for (info in slides.values) {
-						begin(info.slide.name)
-						image(info.imageDesc)
-						end()
-					}
 				}
 			}
 		}
@@ -170,7 +175,12 @@ internal class WindowThread(
 		renderer.waitForIdle()
 	}
 
+	private enum class DragMode {
+		RotateXY,
+		RotateZ
+	}
 
+	// TODO: this class is getting bigger, move it into a separate file?
 	inner class SlideInfo(val slide: Slide): AutoCloseable {
 
 		private val closer = AutoCloser()
@@ -180,13 +190,96 @@ internal class WindowThread(
 		val renderer = SlideRenderer(
 			this@WindowThread.renderer.device,
 			this@WindowThread.renderer.graphicsFamily,
-			320,
+			320, // TODO: allow resizing slides
 			240
 		).autoClose()
 
 		val semaphore = renderer.device.semaphore().autoClose()
 
-		val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose()
+		private val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose()
+
+		// GUI state
+		private val contentMin = Vector2f()
+		private val mousePos = Vector2f()
+		private val dragDelta = Vector2f()
+		private var dragStartAngle = 0f
+		private var cameraRotator: Camera.Rotator = renderer.camera.Rotator()
+		private var dragMode: DragMode = DragMode.RotateXY
+
+		private fun Commands.getDragAngle(): Float {
+			mousePos
+				.apply { getMousePos(this) }
+				.sub(Vector2f().apply { getItemRectMin(this) })
+				.sub(renderer.extent.width.toFloat()/2, renderer.extent.height.toFloat()/2)
+			return atan2(mousePos.y, mousePos.x)
+		}
+
+		fun gui(imgui: Commands) = imgui.apply {
+
+			// start the window
+			setNextWindowContentSize(renderer.extent)
+			begin(slide.name)
+
+			// get the window content area
+			getWindowContentRegionMin(contentMin)
+
+			// draw the slide image
+			setCursorPos(contentMin)
+			image(imageDesc)
+
+			// draw a big invisible button over the image so we can capture mouse events
+			setCursorPos(contentMin)
+			invisibleButton("drag", renderer.extent)
+			if (isItemClicked(0)) {
+
+				cameraRotator.capture()
+
+				// get the click pos relative to the image center, normalized by image size
+				mousePos
+					.apply { getMousePos(this) }
+					.sub(Vector2f().apply { getItemRectMin(this) })
+					.sub(renderer.extent.width.toFloat()/2, renderer.extent.height.toFloat()/2)
+					.mul(2f/renderer.extent.width, 2f/renderer.extent.height)
+					.apply {
+						x = abs(x)
+						y = abs(y)
+					}
+
+				// pick the drag mode based on the click pos
+				// if we're near the center, rotate about xy
+				// otherwise, rotate about z
+				val cutoff = 0.6
+				dragMode = if (mousePos.x < cutoff && mousePos.y < cutoff) {
+					DragMode.RotateXY
+				} else {
+					dragStartAngle = getDragAngle()
+					DragMode.RotateZ
+				}
+
+			}
+			if (isItemActive()) {
+				if (Imgui.io.mouse.buttonDown[0]) {
+
+					// apply the drag rotations
+					cameraRotator.apply {
+						q.identity()
+						when (dragMode) {
+							DragMode.RotateXY -> {
+								getMouseDragDelta(0, dragDelta)
+								q.rotateAxis(dragDelta.x/100f, up)
+								q.rotateAxis(dragDelta.y/100f, side)
+							}
+							DragMode.RotateZ -> {
+								q.rotateAxis(getDragAngle() - dragStartAngle, look)
+							}
+						}
+						update()
+					}
+				}
+			}
+
+			end()
+		}
 	}
 
 	val slides = HashMap<Slide,SlideInfo>()

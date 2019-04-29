@@ -121,6 +121,9 @@ internal class WindowRenderer(
 		Imgui.context().autoClose()
 		Imgui.init(win, graphicsQueue, descriptorPool, renderPass)
 		Imgui.initFonts()
+
+		// configure ImGUI
+		Imgui.io.configWindowsMoveFromTitleBarOnly = true
 	}
 
 	// make semaphores for command buffer synchronization
