@@ -10,7 +10,7 @@ import java.nio.file.Paths
 
 class SlideRenderer(
 	val device: Device,
-	val graphicsFamily: PhysicalDevice.QueueFamily,
+	val queue: Queue,
 	val width: Int,
 	val height: Int,
 	var backgroundColor: ColorRGBA = ColorRGBA.Float(0f, 0f, 0f)
@@ -20,7 +20,6 @@ class SlideRenderer(
 	private fun <R:AutoCloseable> R.autoClose() = also { closer.add(this@autoClose) }
 	override fun close() = closer.close()
 
-	val graphicsQueue = device.queues[graphicsFamily]!![0]
 	val extent = Extent2D(width, height)
 	val rect = Rect2D(Offset2D(0, 0), extent)
 
@@ -182,7 +181,7 @@ class SlideRenderer(
 	// make a graphics command buffer
 	val commandPool = device
 		.commandPool(
-			graphicsFamily,
+			queue.family,
 			flags = IntFlags.of(CommandPool.Create.ResetCommandBuffer)
 		)
 		.autoClose()
@@ -342,7 +341,7 @@ class SlideRenderer(
 		}
 
 		// render the frame
-		graphicsQueue.submit(
+		queue.submit(
 			commandBuffer,
 			waitFor = listOf(),
 			signalTo =

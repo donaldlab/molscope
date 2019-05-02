@@ -2,15 +2,16 @@ package edu.duke.cs.molscope
 
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
+import cuchaz.kludge.imgui.context
 import cuchaz.kludge.tools.AutoCloser
-import cuchaz.kludge.vulkan.ColorRGBA
-import cuchaz.kludge.vulkan.Semaphore
-import cuchaz.kludge.vulkan.semaphore
+import cuchaz.kludge.tools.IntFlags
+import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.window.Monitors
 import cuchaz.kludge.window.Size
 import cuchaz.kludge.window.Window as KWindow
 import cuchaz.kludge.window.Windows
 import edu.duke.cs.molscope.render.Camera
+import edu.duke.cs.molscope.render.VulkanDevice
 import edu.duke.cs.molscope.render.SlideRenderer
 import edu.duke.cs.molscope.render.WindowRenderer
 import org.joml.Vector2f
@@ -105,7 +106,7 @@ internal class WindowThread(
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
-	private fun <R:AutoCloseable> R.autoClose() = also { closer.add(this@autoClose) }
+	private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = also { closer.add(this@autoClose, replace) }
 	private fun <R> R.autoClose(block: R.() -> Unit) = also { closer.add { block() } }
 	override fun close() = closer.close()
 
@@ -127,22 +128,51 @@ internal class WindowThread(
 	}
 
 	// make a window and show it
-	// TODO: allow resizing the window
 	val win = KWindow(title, size)
 		.autoClose()
 		.apply {
-			centerOn(Monitors.primary)
+			centerOn(Monitors.findBest(size))
 			visible = true
 		}
 
-	val renderer = WindowRenderer(win).autoClose()
+	val vk = VulkanDevice(
+		vulkanExtensions = Windows.requiredVulkanExtensions
+	).autoClose()
 
-	val slidesSemaphore = renderer.device.semaphore().autoClose()
+	// make a surface for the window
+	val surface = vk.vulkan.surface(win).autoClose()
+
+	// create the device and the queues
+	val graphicsFamily = vk.physicalDevice.findQueueFamily(IntFlags.of(PhysicalDevice.QueueFamily.Flags.Graphics))
+	val surfaceFamily = vk.physicalDevice.findQueueFamily(surface)
+	val device = vk.physicalDevice.device(
+		queuePriorities = mapOf(
+			graphicsFamily to listOf(1.0f),
+			surfaceFamily to listOf(1.0f)
+		),
+		features = vk.deviceFeatures,
+		extensionNames = setOf(PhysicalDevice.SwapchainExtension)
+	).autoClose()
+	val graphicsQueue = device.queues[graphicsFamily]!![0]
+	val surfaceQueue = device.queues[surfaceFamily]!![0]
+
+	init {
+		// init ImGUI
+		Imgui.load().autoClose()
+		Imgui.context().autoClose()
+
+		// configure ImGUI
+		Imgui.io.configWindowsMoveFromTitleBarOnly = true
+	}
+
+	var renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface).autoClose()
 
 	fun renderLoop() {
 
-		while (!renderer.win.shouldClose) {
+		while (!win.shouldClose) {
 			synchronized(this) {
+
+				Windows.pollEvents()
 
 				// render the slides
 				for (info in slides.values) {
@@ -150,23 +180,36 @@ internal class WindowThread(
 				}
 
 				// render the window
-				renderer.render(slides.values.map { it.semaphore }) {
+				try {
+					renderer.render(slides.values.map { it.semaphore }) {
 
-					// TEMP: demo window
-					//showDemoWindow()
+						// TEMP: demo window
+						//showDemoWindow()
 
-					// draw the slides on the window
-					for (info in slides.values) {
-						info.gui(this)
+						// draw the slides on the window
+						for (info in slides.values) {
+							info.gui(this)
+						}
+
+						// TEMP: debug window
+						setNextWindowSize(400f, 200f)
+						begin("Rendering info")
+						text("display size: ${Imgui.io.displaySize.width} x ${Imgui.io.displaySize.height}")
+						text("frame time: ${String.format("%.3f", 1000f*Imgui.io.deltaTime)} ms")
+						text("FPS: ${String.format("%.3f", Imgui.io.frameRate)}")
+						end()
 					}
+				} catch (ex: SwapchainOutOfDateException) {
 
-					// TEMP: debug window
-					setNextWindowSize(400f, 200f)
-					begin("Rendering info")
-					text("display size: ${Imgui.io.displaySize.width} x ${Imgui.io.displaySize.height}")
-					text("frame time: ${String.format("%.3f", 1000f*Imgui.io.deltaTime)} ms")
-					text("FPS: ${String.format("%.3f", Imgui.io.frameRate)}")
-					end()
+					// re-create the renderer
+					renderer.waitForIdle()
+					renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer.swapchain)
+						.autoClose(replace = renderer)
+
+					// update the image descriptors for the slides
+					for (info in slides.values) {
+						info.updateImageDesc()
+					}
 				}
 			}
 		}
@@ -184,19 +227,23 @@ internal class WindowThread(
 	inner class SlideInfo(val slide: Slide): AutoCloseable {
 
 		private val closer = AutoCloser()
-		private fun <R:AutoCloseable> R.autoClose() = also { closer.add(this@autoClose) }
+		private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = also { closer.add(this@autoClose, replace) }
 		override fun close() = closer.close()
 
 		val renderer = SlideRenderer(
-			this@WindowThread.renderer.device,
-			this@WindowThread.renderer.graphicsFamily,
+			device,
+			graphicsQueue,
 			320, // TODO: allow resizing slides
 			240
 		).autoClose()
 
-		val semaphore = renderer.device.semaphore().autoClose()
+		val semaphore = device.semaphore().autoClose()
 
-		private val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose()
+		private var imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose()
+
+		fun updateImageDesc() {
+			imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose(replace = imageDesc)
+		}
 
 		// GUI state
 		private val contentMin = Vector2f()

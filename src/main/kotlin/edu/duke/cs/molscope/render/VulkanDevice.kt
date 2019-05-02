@@ -6,8 +6,7 @@ import cuchaz.kludge.tools.toFlagsString
 import cuchaz.kludge.vulkan.*
 
 
-class Renderer(
-	val headless: Boolean = false,
+class VulkanDevice(
 	val vulkanExtensions: Set<String> = emptySet()
 ) : AutoCloseable {
 

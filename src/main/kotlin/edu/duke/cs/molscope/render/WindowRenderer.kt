@@ -2,46 +2,30 @@ package edu.duke.cs.molscope.render
 
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
-import cuchaz.kludge.imgui.context
 import cuchaz.kludge.tools.AutoCloser
 import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.window.Window
-import cuchaz.kludge.window.Windows
 
 
 internal class WindowRenderer(
 	val win: Window,
-	var backgroundColor: ColorRGBA = ColorRGBA.Float(0.3f, 0.3f, 0.3f)
+	val vk: VulkanDevice,
+	val device: Device,
+	val graphicsQueue: Queue,
+	val surfaceQueue: Queue,
+	val surface: Surface,
+	oldSwapchain: Swapchain? = null
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
 	private fun <R:AutoCloseable> R.autoClose() = also { closer.add(this@autoClose) }
 	override fun close() = closer.close()
 
-	val renderer = Renderer(
-		vulkanExtensions = Windows.requiredVulkanExtensions
-	).autoClose()
-
-	// make a surface for the window
-	val surface = renderer.vulkan.surface(win).autoClose()
-
-	// create the device and the queues
-	val graphicsFamily = renderer.physicalDevice.findQueueFamily(IntFlags.of(PhysicalDevice.QueueFamily.Flags.Graphics))
-	val surfaceFamily = renderer.physicalDevice.findQueueFamily(surface)
-	val device = renderer.physicalDevice.device(
-		queuePriorities = mapOf(
-			graphicsFamily to listOf(1.0f),
-			surfaceFamily to listOf(1.0f)
-		),
-		features = renderer.deviceFeatures,
-		extensionNames = setOf(PhysicalDevice.SwapchainExtension)
-	).autoClose()
-	val graphicsQueue = device.queues[graphicsFamily]!![0]
-	val surfaceQueue = device.queues[surfaceFamily]!![0]
+	var backgroundColor: ColorRGBA = ColorRGBA.Float(0.3f, 0.3f, 0.3f)
 
 	// build the swapchain
-	val swapchain = renderer.physicalDevice.swapchainSupport(surface).run {
+	val swapchain = vk.physicalDevice.swapchainSupport(surface).run {
 		swapchain(
 			device,
 			surfaceFormat = find(Image.Format.B8G8R8A8_UNORM, Image.ColorSpace.SRGB_NONLINEAR)
@@ -49,7 +33,8 @@ internal class WindowRenderer(
 			presentMode = find(PresentMode.Mailbox)
 				?: find(PresentMode.FifoRelaxed)
 				?: find(PresentMode.Fifo)
-				?: presentModes.first().also { println("using fallback present mode: $it") }
+				?: presentModes.first().also { println("using fallback present mode: $it") },
+			oldSwapchain = oldSwapchain
 		)
 	}.autoClose()
 
@@ -100,7 +85,7 @@ internal class WindowRenderer(
 	// make a graphics command buffer for each framebuffer
 	val commandPool = device
 		.commandPool(
-			graphicsFamily,
+			graphicsQueue.family,
 			flags = IntFlags.of(CommandPool.Create.ResetCommandBuffer)
 		)
 		.autoClose()
@@ -116,14 +101,8 @@ internal class WindowRenderer(
 	).autoClose()
 
 	init {
-		// init ImGUI
-		Imgui.load().autoClose()
-		Imgui.context().autoClose()
 		Imgui.init(win, graphicsQueue, descriptorPool, renderPass)
 		Imgui.initFonts()
-
-		// configure ImGUI
-		Imgui.io.configWindowsMoveFromTitleBarOnly = true
 	}
 
 	// make semaphores for command buffer synchronization
@@ -132,56 +111,76 @@ internal class WindowRenderer(
 
 	fun render(waitFor: List<Semaphore>? = null, blockGui: Commands.() -> Unit) {
 
-		Windows.pollEvents()
+		try {
 
-		// get the next frame info
-		val imageIndex = swapchain.acquireNextImage(imageAvailable)
-		val framebuffer = framebuffers[imageIndex]
-		val commandBuffer = commandBuffers[imageIndex]
+			// get the next frame info
+			val imageIndex = swapchain.acquireNextImage(imageAvailable)
+			val framebuffer = framebuffers[imageIndex]
+			val commandBuffer = commandBuffers[imageIndex]
 
-		// define the gui for this frame
-		Imgui.frame {
-			blockGui()
-		}
-
-		// record the command buffer every frame
-		commandBuffer.apply {
-			begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
-
-			// draw the GUI in one render pass
-			beginRenderPass(
-				renderPass,
-				framebuffer,
-				swapchain.rect,
-				clearValues = mapOf(
-					colorAttachment to backgroundColor.toClearColor()
-				)
-			)
-			Imgui.draw(this)
-			endRenderPass()
-			end()
-		}
-
-		// what are we waiting for?
-		val waitSemaphores = mutableListOf(Queue.WaitInfo(imageAvailable, IntFlags.of(PipelineStage.ColorAttachmentOutput)))
-		if (waitFor != null) {
-			for (semaphore in waitFor) {
-				waitSemaphores.add(Queue.WaitInfo(semaphore, IntFlags.of(PipelineStage.ColorAttachmentOutput)))
+			// define the gui for this frame
+			Imgui.frame {
+				blockGui()
 			}
-		}
 
-		// render the frame
-		graphicsQueue.submit(
-			commandBuffers[imageIndex],
-			waitFor = waitSemaphores,
-			signalTo = listOf(renderFinished)
-		)
-		surfaceQueue.present(
-			swapchain,
-			imageIndex,
-			waitFor = renderFinished
-		)
-		surfaceQueue.waitForIdle()
+			// record the command buffer every frame
+			commandBuffer.apply {
+				begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
+
+				// draw the GUI in one render pass
+				beginRenderPass(
+					renderPass,
+					framebuffer,
+					swapchain.rect,
+					clearValues = mapOf(
+						colorAttachment to backgroundColor.toClearColor()
+					)
+				)
+				Imgui.draw(this)
+				endRenderPass()
+				end()
+			}
+
+			// what are we waiting for?
+			val waitSemaphores = mutableListOf(Queue.WaitInfo(imageAvailable, IntFlags.of(PipelineStage.ColorAttachmentOutput)))
+			if (waitFor != null) {
+				for (semaphore in waitFor) {
+					waitSemaphores.add(Queue.WaitInfo(semaphore, IntFlags.of(PipelineStage.AllCommands)))
+				}
+			}
+
+			// render the frame
+			graphicsQueue.submit(
+				commandBuffers[imageIndex],
+				waitFor = waitSemaphores,
+				signalTo = listOf(renderFinished)
+			)
+			surfaceQueue.present(
+				swapchain,
+				imageIndex,
+				waitFor = renderFinished
+			)
+			surfaceQueue.waitForIdle()
+
+		} catch (ex: SwapchainOutOfDateException) {
+
+			// we got interrupted before we could wait on the semaphores, so do that now
+			if (waitFor != null) {
+				graphicsQueue.submit(
+					commandPool.buffer().apply {
+						begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
+						// use an empty buffer to unsignal the semaphores
+						end()
+					},
+					waitFor = waitFor.map {
+						Queue.WaitInfo(it, IntFlags.of(PipelineStage.AllCommands))
+					}
+				)
+			}
+
+			// and pass the signal up the stack
+			throw ex
+		}
 	}
 
 	fun waitForIdle() = device.waitForIdle()

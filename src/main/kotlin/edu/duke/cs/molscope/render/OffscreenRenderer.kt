@@ -4,7 +4,7 @@ import cuchaz.kludge.tools.AutoCloser
 
 
 class OffscreenRenderer(
-	val renderer: Renderer
+	val vk: VulkanDevice
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
