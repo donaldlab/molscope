@@ -13,6 +13,7 @@ class SlideRenderer(
 	val queue: Queue,
 	val width: Int,
 	val height: Int,
+	oldRenderer: SlideRenderer? = null,
 	var backgroundColor: ColorRGBA = ColorRGBA.Float(0f, 0f, 0f)
 ) : AutoCloseable {
 
@@ -121,40 +122,51 @@ class SlideRenderer(
 	)
 
 	// make a camera
-	val camera = Camera(device)
+	val camera: Camera = Camera(device)
 		.autoClose()
 		.apply {
 
-			// compute the atom bounding box
-			val box = atoms[0].run {
-				AABBf(
-					x, y, z,
-					x, y, z
+			// if we have an old renderer, copy the camera state
+			if (oldRenderer != null) {
+
+				set(oldRenderer.camera)
+				resize(width, height)
+
+			} else {
+
+				// otherwise, pick a default camera state
+
+				// compute the atom bounding box
+				val box = atoms[0].run {
+					AABBf(
+						x, y, z,
+						x, y, z
+					)
+				}
+				for (atom in atoms) {
+					box.expandToInclude(
+						atom.x - atom.element.radius,
+						atom.y - atom.element.radius,
+						atom.z - atom.element.radius
+					)
+					box.expandToInclude(
+						atom.x + atom.element.radius,
+						atom.y + atom.element.radius,
+						atom.z + atom.element.radius
+					)
+				}
+
+				// add a little padding to give the box some breathing room
+				box.expand(1f)
+
+				lookAtBox(
+					width, height,
+					focalLength = 200f,
+					look = Vector3f(0f, 0f, 1f),
+					up = Vector3f(0f, 1f, 0f),
+					box = box
 				)
 			}
-			for (atom in atoms) {
-				box.expandToInclude(
-					atom.x - atom.element.radius,
-					atom.y - atom.element.radius,
-					atom.z - atom.element.radius
-				)
-				box.expandToInclude(
-					atom.x + atom.element.radius,
-					atom.y + atom.element.radius,
-					atom.z + atom.element.radius
-				)
-			}
-
-			// add a little padding to give the box some breathing room
-			box.expand(1f)
-
-			lookAtBox(
-				width, height,
-				focalLength = 200f,
-				look = Vector3f(0f, 0f, 1f),
-				up = Vector3f(0f, 1f, 0f),
-				box = box
-			)
 		}
 
 	// make the descriptor pool

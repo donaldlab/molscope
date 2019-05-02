@@ -176,6 +176,7 @@ internal class WindowThread(
 
 				// render the slides
 				for (info in slides.values) {
+					info.resizeIfNeeded()
 					info.renderer.render(info.semaphore)
 				}
 
@@ -203,7 +204,7 @@ internal class WindowThread(
 
 					// re-create the renderer
 					renderer.waitForIdle()
-					renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer.swapchain)
+					renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer)
 						.autoClose(replace = renderer)
 
 					// update the image descriptors for the slides
@@ -230,10 +231,10 @@ internal class WindowThread(
 		private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = also { closer.add(this@autoClose, replace) }
 		override fun close() = closer.close()
 
-		val renderer = SlideRenderer(
+		var renderer = SlideRenderer(
 			device,
 			graphicsQueue,
-			320, // TODO: allow resizing slides
+			320, // pick an arbitrary initial size (doesn't matter what, we'll get resized later)
 			240
 		).autoClose()
 
@@ -245,8 +246,34 @@ internal class WindowThread(
 			imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose(replace = imageDesc)
 		}
 
+		fun resizeIfNeeded() {
+
+			// how big is the window content area?
+			val width = (contentMax.x - contentMin.x).toInt()
+			val height = (contentMax.y - contentMin.y).toInt()
+
+			if (width <= 0 || height <= 0) {
+
+				// not big enough, don't bother resizing
+				return
+			}
+
+			if (width == renderer.width && height == renderer.height) {
+
+				// same size as before, don't resize
+				return
+			}
+
+			renderer = SlideRenderer(device, graphicsQueue, width, height, renderer).autoClose(replace = renderer)
+			updateImageDesc()
+
+			// get a new camera rotator
+			cameraRotator = renderer.camera.Rotator()
+		}
+
 		// GUI state
 		private val contentMin = Vector2f()
+		private val contentMax = Vector2f()
 		private val mousePos = Vector2f()
 		private val dragDelta = Vector2f()
 		private var dragStartAngle = 0f
@@ -264,11 +291,11 @@ internal class WindowThread(
 		fun gui(imgui: Commands) = imgui.apply {
 
 			// start the window
-			setNextWindowContentSize(renderer.extent)
 			begin(slide.name)
 
-			// get the window content area
+			// track the window content area
 			getWindowContentRegionMin(contentMin)
+			getWindowContentRegionMax(contentMax)
 
 			// draw the slide image
 			setCursorPos(contentMin)

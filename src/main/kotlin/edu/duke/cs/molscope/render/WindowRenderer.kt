@@ -15,7 +15,7 @@ internal class WindowRenderer(
 	val graphicsQueue: Queue,
 	val surfaceQueue: Queue,
 	val surface: Surface,
-	oldSwapchain: Swapchain? = null
+	oldRenderer: WindowRenderer? = null
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
@@ -25,7 +25,7 @@ internal class WindowRenderer(
 	var backgroundColor: ColorRGBA = ColorRGBA.Float(0.3f, 0.3f, 0.3f)
 
 	// build the swapchain
-	val swapchain = vk.physicalDevice.swapchainSupport(surface).run {
+	val swapchain: Swapchain = vk.physicalDevice.swapchainSupport(surface).run {
 		swapchain(
 			device,
 			surfaceFormat = find(Image.Format.B8G8R8A8_UNORM, Image.ColorSpace.SRGB_NONLINEAR)
@@ -34,7 +34,7 @@ internal class WindowRenderer(
 				?: find(PresentMode.FifoRelaxed)
 				?: find(PresentMode.Fifo)
 				?: presentModes.first().also { println("using fallback present mode: $it") },
-			oldSwapchain = oldSwapchain
+			oldSwapchain = oldRenderer?.swapchain
 		)
 	}.autoClose()
 

@@ -49,6 +49,23 @@ class Camera internal constructor(
 		.allocateDevice()
 		.autoClose()
 
+	fun set(other: Camera) {
+		this.pos.set(other.pos)
+		this.lookAt.set(other.lookAt)
+		this.up.set(other.up)
+		this.size.set(other.size)
+		this.zNear = other.zNear
+		this.zFar = other.zFar
+		this.magnification = other.magnification
+
+		this.side.set(other.side)
+		this.look.set(other.look)
+	}
+
+	fun resize(width: Int, height: Int) {
+		size.set(width.toFloat(), height.toFloat())
+	}
+
 	fun upload() {
 		buf.transferHtoD { buf ->
 
