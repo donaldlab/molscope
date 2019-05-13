@@ -121,24 +121,30 @@ internal class SlideWindow(
 			}
 
 		}
-		if (isItemActive()) {
-			if (Imgui.io.mouse.buttonDown[0]) {
+		if (isItemActive() && Imgui.io.mouse.buttonDown[0]) {
 
-				// apply the drag rotations
-				cameraRotator.apply {
-					q.identity()
-					when (dragMode) {
-						DragMode.RotateXY -> {
-							getMouseDragDelta(0, dragDelta)
-							q.rotateAxis(dragDelta.x/100f, up)
-							q.rotateAxis(dragDelta.y/100f, side)
-						}
-						DragMode.RotateZ -> {
-							q.rotateAxis(getDragAngle() - dragStartAngle, look)
-						}
+			// apply the drag rotations
+			cameraRotator.apply {
+				q.identity()
+				when (dragMode) {
+					DragMode.RotateXY -> {
+						getMouseDragDelta(0, dragDelta)
+						q.rotateAxis(dragDelta.x/100f, up)
+						q.rotateAxis(dragDelta.y/100f, side)
 					}
-					update()
+					DragMode.RotateZ -> {
+						q.rotateAxis(getDragAngle() - dragStartAngle, look)
+					}
 				}
+				update()
+			}
+		}
+		if (isItemHovered()) {
+
+			// apply mouse wheel magnification
+			val delta = Imgui.io.mouse.wheel
+			if (delta != 0f) {
+				renderer.camera.magnification *= 1f + delta/10f
 			}
 		}
 
