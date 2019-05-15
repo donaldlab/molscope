@@ -21,7 +21,7 @@ layout(binding = 0, std140) uniform restrict readonly View {
 
 
 // camera space:
-// z looks away from the camera
+// z points in the direction the camera is looking
 // y points towards the up direction
 // x is defined by applying the right-hand rule on y and z
 

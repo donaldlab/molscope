@@ -7,6 +7,7 @@ import cuchaz.kludge.vulkan.putColor4Bytes
 import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.molecule.Element
 import edu.duke.cs.molscope.molecule.Molecule
+import edu.duke.cs.molscope.render.SphereRenderable
 import edu.duke.cs.molscope.render.SphereRenderer
 import org.joml.AABBf
 import java.nio.ByteBuffer
@@ -21,11 +22,13 @@ class SpaceFilling(
 	mol: Molecule
 	// TODO: molecule subset selection?
 ): RenderView {
-
-	val numAtoms = mol.atoms.size
-
-	internal val buf =
-		ByteBuffer.allocate(SphereRenderer.vertexInput.size.toInt()*numAtoms).apply {
+	
+	internal val sphereRenderable = object : SphereRenderable {
+		
+		override val numSpheres = mol.atoms.size
+		
+		override val vertexBuf =
+			ByteBuffer.allocate(SphereRenderer.vertexInput.size.toInt()*numSpheres).apply {
 
 			// use native byte ordering so we can efficiently copy to the GPU
 			order(ByteOrder.nativeOrder())
@@ -44,18 +47,19 @@ class SpaceFilling(
 			}
 			flip()
 		}
+	}
 
 	override fun calcBoundingBox() =
 		AABBf().apply {
 
-			buf.rewind()
-			for (i in 0 until numAtoms) {
+			sphereRenderable.vertexBuf.rewind()
+			for (i in 0 until sphereRenderable.numSpheres) {
 
-				val x = buf.float
-				val y = buf.float
-				val z = buf.float
-				val r = buf.float
-				buf.skip(4)
+				val x = sphereRenderable.vertexBuf.float
+				val y = sphereRenderable.vertexBuf.float
+				val z = sphereRenderable.vertexBuf.float
+				val r = sphereRenderable.vertexBuf.float
+				sphereRenderable.vertexBuf.skip(4)
 
 				if (i == 0) {
 					setMin(x - r, y - r, z - r)
@@ -65,24 +69,23 @@ class SpaceFilling(
 					expandToInclude(x + r, y + r, z + r)
 				}
 			}
-			buf.rewind()
+			sphereRenderable.vertexBuf.rewind()
 		}
-}
 
+	private data class ElementProps(
+		val radius: Float,
+		val color: ColorRGBA.Int
+	) {
 
-internal data class ElementProps(
-	val radius: Float,
-	val color: ColorRGBA.Int
-) {
+		companion object {
 
-	companion object {
-
-		operator fun get(atom: Atom) =
-			when (atom.element) {
-				Element.Hydrogen -> ElementProps(1f, ColorRGBA.Int(200, 200, 200))
-				Element.Carbon -> ElementProps(1.75f, ColorRGBA.Int(60, 60, 60))
-				Element.Nitrogen -> ElementProps(1.55f, ColorRGBA.Int(20, 20, 200))
-				Element.Oxygen -> ElementProps(1.4f, ColorRGBA.Int(200, 20, 20))
-			}
+			operator fun get(atom: Atom) =
+				when (atom.element) {
+					Element.Hydrogen -> ElementProps(1f, ColorRGBA.Int(200, 200, 200))
+					Element.Carbon -> ElementProps(1.75f, ColorRGBA.Int(60, 60, 60))
+					Element.Nitrogen -> ElementProps(1.55f, ColorRGBA.Int(20, 20, 200))
+					Element.Oxygen -> ElementProps(1.4f, ColorRGBA.Int(200, 20, 20))
+				}
+		}
 	}
 }

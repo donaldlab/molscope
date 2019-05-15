@@ -21,6 +21,14 @@ class Atoms(capacity: Int = 16): Iterable<Atom> {
 	private val names = ArrayList<String>(capacity)
 	private val coords = ArrayList<Double>(capacity*3)
 
+	constructor(other: Atoms) : this(other.size) {
+		this.size = other.size
+		this.elements.addAll(other.elements)
+		this.names.addAll(other.names)
+		this.coords.addAll(other.coords)
+	}
+	fun copy() = Atoms(this)
+
 	fun add(atom: Atom) {
 		elements.add(atom.element)
 		names.add(atom.name)
@@ -35,11 +43,11 @@ class Atoms(capacity: Int = 16): Iterable<Atom> {
 
 			private var i = 0
 
+			override fun hasNext() = i < size
+
 			override fun next() =
 				get(i)
 				.also { i += 1 }
-
-			override fun hasNext() = i < size
 		}
 
 	private fun checkIndex(i: Int) {

@@ -45,7 +45,7 @@ class Slide(name: String) {
 
 			return views
 				.map { view -> view.calcBoundingBox() }
-				.reduce { a, b -> a.union(b) }
+				.reduce { a, b -> AABBf().apply { a.union(b, this) } }
 		}
 
 		inner class Camera {

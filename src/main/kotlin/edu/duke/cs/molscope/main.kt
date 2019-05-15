@@ -2,6 +2,7 @@ package edu.duke.cs.molscope
 
 import cuchaz.kludge.tools.*
 import edu.duke.cs.molscope.molecule.*
+import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.SpaceFilling
 
 
@@ -30,11 +31,11 @@ fun main() = autoCloser {
 			add(0, 3) // N-H3
 			add(0, 4) // N-CA
 			add(4, 5) // CA-HA
-			add(4,6 ) // CA-CB
+			add(4, 6) // CA-CB
 			add(6, 7) // CB-HB1
 			add(6, 8) // CB-HB2
 			add(6, 9) // CB-HB3
-			add(6, 10) // CA-C
+			add(4, 10) // CA-C
 			add(10, 11) // C-O
 		}
 	)
@@ -49,7 +50,9 @@ fun main() = autoCloser {
 	// prepare a slide for the molecule
 	val slide = Slide("Slide")
 	slide.lock {
-		views.add(SpaceFilling(mol))
+		// TEMP
+		//views.add(SpaceFilling(mol))
+		views.add(BallAndStick(mol))
 		camera.lookAtEverything()
 	}
 	win.slides.add(slide)

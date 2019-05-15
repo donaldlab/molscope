@@ -10,7 +10,7 @@ import java.nio.file.Paths
 import java.util.*
 
 
-internal class SphereRenderer(
+internal class CylinderRenderer(
 	val slideRenderer: SlideRenderer
 ): AutoCloseable {
 
@@ -46,22 +46,22 @@ internal class SphereRenderer(
 	val graphicsPipeline = slideRenderer
 		.graphicsPipeline(
 			listOf(
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/sphere.vert.spv"))
+				slideRenderer.device.shaderModule(Paths.get("build/shaders/cylinder.vert.spv"))
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/sphere.geom.spv"))
+				slideRenderer.device.shaderModule(Paths.get("build/shaders/cylinder.geom.spv"))
 					.autoClose()
 					.stage("main", ShaderStage.Geometry),
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/sphere.frag.spv"))
+				slideRenderer.device.shaderModule(Paths.get("build/shaders/cylinder.frag.spv"))
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),
 			vertexInput,
-			inputAssembly = InputAssembly(InputAssembly.Topology.PointList)
+			inputAssembly = InputAssembly(InputAssembly.Topology.LineList)
 		)
 		.autoClose()
 
-	inner class Entry(src: SphereRenderable): AutoCloseable {
+	inner class Entry(src: CylinderRenderable): AutoCloseable {
 
 		private val closer = AutoCloser()
 		private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
@@ -85,9 +85,28 @@ internal class SphereRenderer(
 					buf.flip()
 				}
 			}
+
+		// allocate the index buffer on the GPU
+		val indexBuf = slideRenderer.device
+			.buffer(
+				size = src.indexBuf.capacity().toLong(),
+				usage = IntFlags.of(Buffer.Usage.IndexBuffer, Buffer.Usage.TransferDst)
+			)
+			.autoClose()
+			.allocateDevice()
+			.autoClose()
+			.apply {
+
+				// upload the index buffer
+				transferHtoD { buf ->
+					src.indexBuf.rewind()
+					buf.put(src.indexBuf)
+					buf.flip()
+				}
+			}
 	}
 
-	private val entries = IdentityHashMap<SphereRenderable,Entry>()
+	private val entries = IdentityHashMap<CylinderRenderable,Entry>()
 		.autoClose {
 			for (entry in values) {
 				entry.close()
@@ -95,7 +114,7 @@ internal class SphereRenderer(
 			clear()
 		}
 
-	fun update(sources: List<SphereRenderable>) {
+	fun update(sources: List<CylinderRenderable>) {
 		sources.diff(
 			entries,
 			added = { src ->
@@ -108,7 +127,7 @@ internal class SphereRenderer(
 		)
 	}
 
-	fun render(cmdbuf: CommandBuffer, src: SphereRenderable) = cmdbuf.apply {
+	fun render(cmdbuf: CommandBuffer, src: CylinderRenderable) = cmdbuf.apply {
 
 		val entry = entries[src] ?: throw NoSuchElementException("call update() with this source, before render()")
 
@@ -116,12 +135,14 @@ internal class SphereRenderer(
 		bindPipeline(graphicsPipeline)
 		bindDescriptorSet(slideRenderer.descriptorSet, graphicsPipeline)
 		bindVertexBuffer(entry.vertexBuf.buffer)
-		draw(vertices = src.numSpheres)
+		bindIndexBuffer(entry.indexBuf.buffer, CommandBuffer.IndexType.UInt32)
+		drawIndexed(indices = src.numIndices)
 	}
 }
 
 
-internal interface SphereRenderable {
-	val numSpheres: Int
+internal interface CylinderRenderable {
+	val numIndices: Int
 	val vertexBuf: ByteBuffer
+	val indexBuf: ByteBuffer
 }

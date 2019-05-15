@@ -5,6 +5,7 @@ import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.CameraCommand
 import edu.duke.cs.molscope.Slide
+import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector3f
 
@@ -202,11 +203,28 @@ internal class SlideRenderer(
 	)
 
 	private val sphereRenderer = SphereRenderer(this).autoClose()
+	private val cylinderRenderer = CylinderRenderer(this).autoClose()
 
 	fun render(slide: Slide.Locked, renderFinished: Semaphore? = null) {
 
 		// update the renderers with views
-		sphereRenderer.update(slide.views.filterIsInstance<SpaceFilling>())
+		// sadly we can't use an interface to collect SphereRenderable instances from views,
+		// because these rendering details are internal, and the views are public API
+		// alas, kotlin doesn't allow mixing internal interfaces into public classes
+		// so, this is going to get a bit messy...
+		sphereRenderer.update(
+			slide.views.mapNotNull { when (it) {
+				is SpaceFilling -> it.sphereRenderable
+				is BallAndStick -> it.sphereRenderable
+				else -> null
+			}}
+		)
+		cylinderRenderer.update(
+			slide.views.mapNotNull { when (it) {
+				is BallAndStick -> it.cylinderRenderable
+				else -> null
+			}}
+		)
 
 		// update the camera
 		while (slide.camera.queue.isNotEmpty()) {
@@ -263,7 +281,13 @@ internal class SlideRenderer(
 			// draw all the views
 			for (view in slide.views) {
 				when (view) {
-					is SpaceFilling -> sphereRenderer.render(this, view)
+					is SpaceFilling -> {
+						sphereRenderer.render(this, view.sphereRenderable)
+					}
+					is BallAndStick -> {
+						sphereRenderer.render(this, view.sphereRenderable)
+						cylinderRenderer.render(this, view.cylinderRenderable)
+					}
 				}
 			}
 

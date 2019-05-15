@@ -8,4 +8,7 @@ class Molecule(
 ) {
 
 	override fun toString() = name
+
+	constructor(other: Molecule) : this(other.name, other.atoms.copy(), other.bonds.copy())
+	fun copy() = Molecule(this)
 }

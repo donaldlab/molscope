@@ -8,6 +8,7 @@ layout(location = 0) out vec4 outColor;
 layout (depth_less) out; // float gl_FragDepth
 
 #include "view.glsl"
+#include "light.glsl"
 
 
 void main() {
@@ -36,12 +37,7 @@ void main() {
 		vec3 normal = normalize(posPixelCamera - posCenterCamera);
 
 		// apply very simple lambertian lighting
-		const float ambient = 0.5;
-		const vec3 toLightVec = normalize(vec3(1, 1, -1));
-		float diffuse = dot(normal, toLightVec);
-		vec3 color = (ambient + diffuse*0.7)*inColor.rgb;
-
-		outColor = vec4(color, inColor.a);
+		outColor = vec4(lambertian(inColor.rgb, normal), inColor.a);
 
 		// calc pixel depth
 		gl_FragDepth = cameraZToClip(posPixelCamera.z);
