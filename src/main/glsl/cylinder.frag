@@ -29,32 +29,29 @@ float calcZEndcap(vec2 xy, uint i, vec3 normals[2]) {
 
 // p, n are the cylinder point and normalized direction
 // r is the cylinder radius
-// TODO: holy balls this is messy (and slow), can we do any better?
 float[2] intersectCylinderRay(vec3 p, vec3 n, float r, float len, vec2 ray) {
 
 	// see math/cylinder.wxmx for the derivation
 	float a1 = n.x*n.x;
 	float a2 = n.y*n.y;
 	float a3 = n.z*n.z;
-	float a4 = n.z*n.z*n.z*n.z; // TODO simplify
+	float a4 = a3*a3;
 	float a5 = a4+(a2+a1-2)*a3+1;
-	float a6 = n.x*n.x*n.x; // TODO: simplify
-	float a7 = n.z*n.z*n.z; // TODO: simplify
+	float a6 = n.x*a1;
+	float a7 = n.z*a3;
 	float a8 = -a1;
 	float a9 = a8+2;
-	float a10 = n.y*n.y*n.y; // TODO: simplify
+	float a10 = n.y*a2;
 	float a11 = -a2;
 	float a12 = -a4;
 	float a13 = 2*a1;
-	float a14 = n.x*n.x*n.x*n.x; // TODO: simplify
+	float a14 = a1*a1;
 	float a15 = a12+(a11-2*a1+2)*a3-a1*a2-a14+a13-1;
 	float a16 = -2*n.x*n.y*a3-2*n.x*a10+(4*n.x-2*a6)*n.y;
-	float a17 = n.y*n.y*n.y*n.y; // TODO: simplify
+	float a17 = a2*a2;
 	float a18 = a12+(-2*a2+a8+2)*a3-a17+a9*a2-1;
 	float a19 = 2*a4;
 	float a20 = 2*n.x*n.y*a3+2*n.x*a10+(2*a6-4*n.x)*n.y;
-
-	// compute the z coord of the intersection
 	float z = -(sqrt(a18*ray.y*ray.y+(a16*ray.x+(a19+(4*a2+a13-4)*a3+2*a17+(a13-4)*a2+2)*p.y+a20*p.x)*ray.y+a15*ray.x*ray.x+(a20*p.y+(a19+(2*a2+4*a1-4)*a3+2*a1*a2+2*a14-4*a1+2)*p.x)*ray.x+a5*r*r+a18*p.y*p.y+a16*p.x*p.y+a15*p.x*p.x)+(n.y*a7+(a10+(a1-2)*n.y)*n.z)*ray.y+(n.x*a7+(n.x*a2+a6-2*n.x)*n.z)*ray.x+(a12+(a11+a8+2)*a3-1)*p.z+((a9*n.y-a10)*n.z-n.y*a7)*p.y+((-n.x*a2-a6+2*n.x)*n.z-n.x*a7)*p.x)/(a5);
 
 	// get the normalized distance along the cylindrical axis
@@ -70,12 +67,6 @@ float[2] intersectCylinderRay(vec3 p, vec3 n, float r, float len, vec2 ray) {
 	return result;
 }
 
-vec4 light(vec4 color, vec3 normal) {
-	// apply very simple lambertian lighting
-	return vec4(lambertian(color.rgb, normal), color.a);
-}
-
-
 void main() {
 
 	// transform from framebuf to camera space
@@ -83,11 +74,12 @@ void main() {
 
 	// convert to a pos,normal cylinder representation
 	vec3 posCylinder = inPosCamera[0];
-	float len = distance(inPosCamera[0], inPosCamera[1]);
-	vec3 normalCylinder = (inPosCamera[1] - inPosCamera[0])/len;
+	vec3 axisCylinder = inPosCamera[1] - inPosCamera[0];
+	float len = length(axisCylinder);
+	axisCylinder /= len;
 
 	// intersect with the cylindrical surface
-	float intersection[2] = intersectCylinderRay(posCylinder, normalCylinder, inRadiusCamera[0], len, posPixelCamera.xy);
+	float intersection[2] = intersectCylinderRay(posCylinder, axisCylinder, inRadiusCamera[0], len, posPixelCamera.xy);
 	float zCylinder = intersection[0];
 	float tCylinder = intersection[1];
 
@@ -96,12 +88,8 @@ void main() {
 
 		posPixelCamera.z = zCylinder;
 
-		// TODO: the lighting on the cylinders doesn't quite match the spheres
-		// I think there's still a bug in the math somewhere...
-		// either here in the cylinders, or maybe in the spheres??
-
 		// compute the normal
-		vec3 center = posCylinder + tCylinder*normalCylinder;
+		vec3 center = posCylinder + tCylinder*len*axisCylinder;
 		vec3 normal = normalize(posPixelCamera - center);
 
 		// pick which color
@@ -119,8 +107,8 @@ void main() {
 
 		// otherwise, find out which endcap (if any) intersects
 		vec3 normalEndcap[2] = {
-			-normalCylinder,
-			normalCylinder
+			-axisCylinder,
+			axisCylinder
 		};
 		float zEndcap[2] = {
 			calcZEndcap(posPixelCamera.xy, 0, normalEndcap),
