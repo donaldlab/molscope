@@ -170,16 +170,21 @@ internal class WindowThread(
 				Windows.pollEvents()
 
 				// render the slides
-				for (info in slideWindows.values) {
+				val slideSemaphores = slideWindows.values.mapNotNull { info ->
 					info.resizeIfNeeded()
 					info.slide.lock {
-						info.renderer.render(this, info.semaphore)
+						if (info.render(this, info.renderFinished)) {
+							info.renderFinished
+						} else {
+							// slide doesn't have size info from the GUI yet
+							null
+						}
 					}
 				}
 
 				// render the window
 				try {
-					renderer.render(slideWindows.values.map { it.semaphore }) {
+					renderer.render(slideSemaphores) {
 
 						// TEMP: demo window
 						//showDemoWindow()
@@ -204,7 +209,7 @@ internal class WindowThread(
 					renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer)
 						.autoClose(replace = renderer)
 
-					// update the image descriptors for the slides
+					// re-creating WindowRenderer re-initializes ImGUI, so update the slide image descriptors
 					for (info in slideWindows.values) {
 						info.updateImageDesc()
 					}
