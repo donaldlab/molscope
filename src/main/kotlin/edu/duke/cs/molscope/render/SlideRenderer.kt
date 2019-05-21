@@ -8,6 +8,7 @@ import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector3f
+import java.nio.file.Paths
 
 
 internal class SlideRenderer(
@@ -27,7 +28,9 @@ internal class SlideRenderer(
 	val extent = Extent2D(width, height)
 	val rect = Rect2D(Offset2D(0, 0), extent)
 
-	// make the render pass
+	var cursorPos: Offset2D? = null
+
+	// make the main render pass
 	val colorAttachment =
 		Attachment(
 			format = Image.Format.R8G8B8A8_UNORM,
@@ -74,10 +77,59 @@ internal class SlideRenderer(
 					)
 				)
 			)
-		).autoClose()
+		)
+		.autoClose()
+
+	// make the post processing render pass
+	val postSubpass =
+		Subpass(
+			pipelineBindPoint = PipelineBindPoint.Graphics,
+			colorAttachments = listOf(colorAttachment to Image.Layout.ColorAttachmentOptimal)
+		)
+	val postRenderPass = device
+		.renderPass(
+			attachments = listOf(colorAttachment),
+			subpasses = listOf(postSubpass),
+			subpassDependencies = listOf(
+				SubpassDependency(
+					src = Subpass.External.dependency(
+						stage = IntFlags.of(PipelineStage.ColorAttachmentOutput)
+					),
+					dst = postSubpass.dependency(
+						stage = IntFlags.of(PipelineStage.ColorAttachmentOutput),
+						access = IntFlags.of(Access.ColorAttachmentRead, Access.ColorAttachmentWrite)
+					)
+				)
+			)
+		)
+		.autoClose()
 
 	// make the render images
-	val image = device
+	val colorImage = device
+		.image(
+			Image.Type.TwoD,
+			extent.to3D(1),
+			colorAttachment.format,
+			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Storage, Image.Usage.InputAttachment)
+		)
+		.autoClose()
+		.allocateDevice()
+		.autoClose()
+	val colorView = colorImage.image.view().autoClose()
+
+	val indexImage = device
+		.image(
+			Image.Type.TwoD,
+			extent.to3D(1),
+			indexAttachment.format,
+			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Storage, Image.Usage.InputAttachment)
+		)
+		.autoClose()
+		.allocateDevice()
+		.autoClose()
+	val indexView = indexImage.image.view().autoClose()
+
+	val postImage = device
 		.image(
 			Image.Type.TwoD,
 			extent.to3D(1),
@@ -87,19 +139,7 @@ internal class SlideRenderer(
 		.autoClose()
 		.allocateDevice()
 		.autoClose()
-	val imageView = image.image.view().autoClose()
-
-	val indexImage = device
-		.image(
-			Image.Type.TwoD,
-			extent.to3D(1),
-			indexAttachment.format,
-			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Sampled)
-		)
-		.autoClose()
-		.allocateDevice()
-		.autoClose()
-	val indexView = indexImage.image.view().autoClose()
+	val postView = postImage.image.view().autoClose()
 
 	val sampler = device.sampler().autoClose()
 
@@ -123,7 +163,16 @@ internal class SlideRenderer(
 	val framebuffer = device
 		.framebuffer(
 			renderPass,
-			imageViews = listOf(imageView, indexView, depthView),
+			imageViews = listOf(colorView, indexView, depthView),
+			extent = extent
+		)
+		.autoClose()
+
+	// make a framebuffer for the post pass too
+	val postFramebuffer = device
+		.framebuffer(
+			postRenderPass,
+			imageViews = listOf(postView),
 			extent = extent
 		)
 		.autoClose()
@@ -143,13 +192,14 @@ internal class SlideRenderer(
 
 	// make the descriptor pool
 	val descriptorPool = device.descriptorPool(
-		maxSets = 1,
+		maxSets = 2,
 		sizes = DescriptorType.Counts(
-			DescriptorType.UniformBuffer to 1
+			DescriptorType.UniformBuffer to 2,
+			DescriptorType.StorageImage to 2
 		)
 	).autoClose()
 
-	// build the descriptor set layout
+	// make the descriptor set
 	val viewBufBinding = DescriptorSetLayout.Binding(
 		binding = 0,
 		type = DescriptorType.UniformBuffer,
@@ -158,9 +208,28 @@ internal class SlideRenderer(
 	val descriptorSetLayout = device.descriptorSetLayout(listOf(
 		viewBufBinding
 	)).autoClose()
-
-	// make the descriptor set
 	val descriptorSet = descriptorPool.allocate(listOf(descriptorSetLayout))[0]
+
+	// make the post descriptor set
+	val hoverBufBinding = DescriptorSetLayout.Binding(
+		binding = 0,
+		type = DescriptorType.UniformBuffer,
+		stages = IntFlags.of(ShaderStage.Fragment) // TODO: effects in geometry shader too? (eg, expand billboards for fades/blurs?)
+	)
+	val colorImageBinding = DescriptorSetLayout.Binding(
+		binding = 1,
+		type = DescriptorType.StorageImage,
+		stages = IntFlags.of(ShaderStage.Fragment)
+	)
+	val indexImageBinding = DescriptorSetLayout.Binding(
+		binding = 2,
+		type = DescriptorType.StorageImage,
+		stages = IntFlags.of(ShaderStage.Fragment)
+	)
+	val postDescriptorSetLayout = device.descriptorSetLayout(listOf(
+		hoverBufBinding, colorImageBinding, indexImageBinding
+	)).autoClose()
+	val postDescriptorSet = descriptorPool.allocate(listOf(postDescriptorSetLayout))[0]
 
 	// make a graphics command buffer
 	val commandPool = device
@@ -171,13 +240,37 @@ internal class SlideRenderer(
 		.autoClose()
 	val commandBuffer = commandPool.buffer()
 
+	val hoverBuf = device
+		.buffer(
+			size = (Int.SIZE_BYTES*4).toLong(),
+			usage = IntFlags.of(Buffer.Usage.UniformBuffer, Buffer.Usage.TransferDst)
+		)
+		.autoClose()
+		.allocateDevice()
+		.autoClose()
+
 	init {
-		// update the descriptor set
+		// update the descriptor sets
 		device.updateDescriptorSets(
 			writes = listOf(
 				descriptorSet.address(viewBufBinding).write(
 					buffers = listOf(
 						DescriptorSet.BufferInfo(camera.buf.buffer)
+					)
+				),
+				postDescriptorSet.address(hoverBufBinding).write(
+					buffers = listOf(
+						DescriptorSet.BufferInfo(hoverBuf.buffer)
+					)
+				),
+				postDescriptorSet.address(colorImageBinding).write(
+					images = listOf(
+						DescriptorSet.ImageInfo(null, colorView, Image.Layout.General)
+					)
+				),
+				postDescriptorSet.address(indexImageBinding).write(
+					images = listOf(
+						DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
 					)
 				)
 			)
@@ -238,6 +331,47 @@ internal class SlideRenderer(
 		depthStencilState = DepthStencilState()
 	)
 
+	private val postPipeline = device
+		.graphicsPipeline(
+			postRenderPass,
+			stages = listOf(
+				device.shaderModule(Paths.get("build/shaders/post.vert.spv"))
+					.autoClose()
+					.stage("main", ShaderStage.Vertex),
+				device.shaderModule(Paths.get("build/shaders/post.frag.spv"))
+					.autoClose()
+					.stage("main", ShaderStage.Fragment)
+			),
+			descriptorSetLayouts = listOf(postDescriptorSetLayout),
+			inputAssembly = InputAssembly(InputAssembly.Topology.TriangleStrip),
+			rasterizationState = RasterizationState(
+				cullMode = IntFlags.of(CullMode.Back),
+				frontFace = FrontFace.Counterclockwise
+			),
+			viewports = listOf(Viewport(
+				0.0f,
+				0.0f,
+				extent.width.toFloat(),
+				extent.height.toFloat()
+			)),
+			scissors = listOf(rect),
+			colorAttachmentBlends = mapOf(
+				colorAttachment to ColorBlendState.Attachment(
+					color = ColorBlendState.Attachment.Part(
+						src = BlendFactor.SrcAlpha,
+						dst = BlendFactor.OneMinusSrcAlpha,
+						op = BlendOp.Add
+					),
+					alpha = ColorBlendState.Attachment.Part(
+						src = BlendFactor.One,
+						dst = BlendFactor.One,
+						op = BlendOp.Max
+					)
+				)
+			)
+		)
+		.autoClose()
+
 	private val sphereRenderer = SphereRenderer(this).autoClose()
 	private val cylinderRenderer = CylinderRenderer(this).autoClose()
 
@@ -277,6 +411,23 @@ internal class SlideRenderer(
 		}
 		camera.upload()
 
+		// update the hover buffer
+		hoverBuf.transferHtoD { buf ->
+			val cursorPos = cursorPos
+			if (cursorPos != null) {
+				buf.putInt(1)
+				buf.skip(4)
+				buf.putInt(cursorPos.x)
+				buf.putInt(cursorPos.y)
+			} else {
+				buf.putInt(0)
+				buf.skip(4)
+				buf.putInt(0)
+				buf.putInt(0)
+			}
+			buf.flip()
+		}
+
 		// record the command buffer
 		commandBuffer.apply {
 			begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
@@ -286,7 +437,7 @@ internal class SlideRenderer(
 				srcStage = IntFlags.of(PipelineStage.TopOfPipe),
 				dstStage = IntFlags.of(PipelineStage.ColorAttachmentOutput),
 				images = listOf(
-					image.image.barrier(
+					colorImage.image.barrier(
 						dstAccess = IntFlags.of(Access.ColorAttachmentWrite),
 						newLayout = Image.Layout.ColorAttachmentOptimal
 					)
@@ -304,6 +455,7 @@ internal class SlideRenderer(
 				)
 			)
 
+			// draw all the views
 			beginRenderPass(
 				renderPass,
 				framebuffer,
@@ -314,8 +466,6 @@ internal class SlideRenderer(
 					depthAttachment to ClearValue.DepthStencil(depth = 1f)
 				)
 			)
-
-			// draw all the views
 			for (view in slide.views) {
 				when (view) {
 					is SpaceFilling -> {
@@ -327,8 +477,35 @@ internal class SlideRenderer(
 					}
 				}
 			}
-
 			endRenderPass()
+
+			pipelineBarrier(
+				srcStage = IntFlags.of(PipelineStage.TopOfPipe),
+				dstStage = IntFlags.of(PipelineStage.FragmentShader),
+				images = listOf(
+					colorImage.image.barrier(
+						dstAccess = IntFlags.of(Access.ShaderRead),
+						newLayout = Image.Layout.General
+					),
+					indexImage.image.barrier(
+						dstAccess = IntFlags.of(Access.ShaderRead),
+						newLayout = Image.Layout.General
+					)
+				)
+			)
+
+			// do the post-processing pass
+			beginRenderPass(
+				postRenderPass,
+				postFramebuffer,
+				rect,
+				clearValues = mapOf(colorAttachment to ClearValue.Color.Int(0, 0, 0, 0))
+			)
+			bindPipeline(postPipeline)
+			bindDescriptorSet(postDescriptorSet, postPipeline)
+			draw(4)
+			endRenderPass()
+
 			end()
 		}
 

@@ -3,6 +3,7 @@ package edu.duke.cs.molscope.gui
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.AutoCloser
+import cuchaz.kludge.vulkan.Offset2D
 import cuchaz.kludge.vulkan.Queue
 import cuchaz.kludge.vulkan.Semaphore
 import cuchaz.kludge.vulkan.semaphore
@@ -31,7 +32,6 @@ internal class SlideWindow(
 	}
 
 	private var rendererInfo: RendererInfo? = null
-		private set
 
 	private val rendererInfoOrThrow: RendererInfo get() = rendererInfo ?: throw NoSuchElementException("no renderer yet, this is a bug")
 
@@ -54,7 +54,7 @@ internal class SlideWindow(
 
 			// make a new renderer
 			val renderer = SlideRenderer(queue, width, height).autoClose()
-			val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.sampler).autoClose()
+			val imageDesc = Imgui.imageDescriptor(renderer.postView, renderer.sampler).autoClose()
 			this.rendererInfo = RendererInfo(renderer, imageDesc)
 
 		} else {
@@ -67,17 +67,19 @@ internal class SlideWindow(
 
 			// replace the old renderer
 			val renderer = SlideRenderer(queue, width, height, rendererInfo.renderer).autoClose(replace = rendererInfo.renderer)
-			val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.sampler).autoClose(replace = rendererInfo.imageDesc)
+			val imageDesc = Imgui.imageDescriptor(renderer.postView, renderer.sampler).autoClose(replace = rendererInfo.imageDesc)
 			this.rendererInfo = RendererInfo(renderer, imageDesc)
 		}
 	}
 
 	fun updateImageDesc() {
 		rendererInfo?.let {
-			it.imageDesc = Imgui.imageDescriptor(it.renderer.imageView, it.renderer.sampler)
+			it.imageDesc = Imgui.imageDescriptor(it.renderer.postView, it.renderer.sampler)
 				.autoClose(replace = it.imageDesc)
 		}
 	}
+
+	var showHovers: Boolean = false
 
 	fun render(slide: Slide.Locked, renderFinished: Semaphore): Boolean {
 		val rendererInfo = rendererInfo ?: return false
@@ -120,6 +122,8 @@ internal class SlideWindow(
 		// draw the slide image
 		setCursorPos(contentMin)
 		image(rendererInfo.imageDesc)
+
+		val imageMin = Vector2f().apply { getItemRectMin(this) }
 
 		// draw a big invisible button over the image so we can capture mouse events
 		setCursorPos(contentMin)
@@ -177,6 +181,20 @@ internal class SlideWindow(
 			if (delta != 0f) {
 				rendererInfo.renderer.camera.magnification *= 1f + delta/10f
 			}
+
+			if (showHovers) {
+
+				// get mouse pos relative to the slide framebuffer and send it to the renderer
+				rendererInfo.renderer.cursorPos = Offset2D(
+					(Imgui.io.mouse.x - imageMin.x).toInt(),
+					(Imgui.io.mouse.y - imageMin.y).toInt()
+				)
+			}
+
+		} else {
+
+			// clear hover info in the renderer
+			rendererInfo.renderer.cursorPos = null
 		}
 
 		end()
