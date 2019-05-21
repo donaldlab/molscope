@@ -54,7 +54,7 @@ internal class SlideWindow(
 
 			// make a new renderer
 			val renderer = SlideRenderer(queue, width, height).autoClose()
-			val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose()
+			val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.sampler).autoClose()
 			this.rendererInfo = RendererInfo(renderer, imageDesc)
 
 		} else {
@@ -67,14 +67,14 @@ internal class SlideWindow(
 
 			// replace the old renderer
 			val renderer = SlideRenderer(queue, width, height, rendererInfo.renderer).autoClose(replace = rendererInfo.renderer)
-			val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.imageSampler).autoClose(replace = rendererInfo.imageDesc)
+			val imageDesc = Imgui.imageDescriptor(renderer.imageView, renderer.sampler).autoClose(replace = rendererInfo.imageDesc)
 			this.rendererInfo = RendererInfo(renderer, imageDesc)
 		}
 	}
 
 	fun updateImageDesc() {
 		rendererInfo?.let {
-			it.imageDesc = Imgui.imageDescriptor(it.renderer.imageView, it.renderer.imageSampler)
+			it.imageDesc = Imgui.imageDescriptor(it.renderer.imageView, it.renderer.sampler)
 				.autoClose(replace = it.imageDesc)
 		}
 	}

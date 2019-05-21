@@ -33,7 +33,7 @@ class SpaceFilling(
 			// use native byte ordering so we can efficiently copy to the GPU
 			order(ByteOrder.nativeOrder())
 
-			for (atom in mol.atoms) {
+			mol.atoms.forEachIndexed { atomIndex, atom ->
 
 				// downgrade atom pos to floats for rendering
 				putFloat(atom.pos.x().toFloat())
@@ -44,6 +44,9 @@ class SpaceFilling(
 					putFloat(radius)
 					putColor4Bytes(color)
 				}
+
+				// TODO: allow different indexing strategies (eg residue, molecule)
+				putInt(atomIndex)
 			}
 			flip()
 		}
@@ -59,7 +62,7 @@ class SpaceFilling(
 				val y = sphereRenderable.vertexBuf.float
 				val z = sphereRenderable.vertexBuf.float
 				val r = sphereRenderable.vertexBuf.float
-				sphereRenderable.vertexBuf.skip(4)
+				sphereRenderable.vertexBuf.skip(8)
 
 				if (i == 0) {
 					setMin(x - r, y - r, z - r)

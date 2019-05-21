@@ -1,10 +1,12 @@
 #version 450
 
-layout(location = 0) in vec3 inPosCamera;
-layout(location = 1) in float inRadiusCamera;
-layout(location = 2) in vec4 inColor;
+layout(location = 0) flat in vec3 inPosCamera;
+layout(location = 1) flat in float inRadiusCamera;
+layout(location = 2) flat in vec4 inColor;
+layout(location = 3) flat in int inIndex;
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out int outIndex;
 layout (depth_less) out; // float gl_FragDepth
 
 #include "view.glsl"
@@ -34,12 +36,14 @@ void main() {
 		vec3 normal = normalize(posPixelCamera - inPosCamera);
 
 		outColor = light(inColor, normal);
+		outIndex = inIndex;
 		gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
 	} else {
 
 		// pixel is outside the sphere
 		outColor = vec4(0);
+		outIndex = -1;
 		gl_FragDepth = 1;
 	}
 }

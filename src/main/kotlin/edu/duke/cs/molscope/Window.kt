@@ -169,7 +169,7 @@ internal class WindowThread(
 
 				Windows.pollEvents()
 
-				// render the slides
+				// render the slides (if possible), and collect the semaphores of the ones we rendered
 				val slideSemaphores = slideWindows.values.mapNotNull { info ->
 					info.resizeIfNeeded()
 					info.slide.lock {
@@ -229,7 +229,6 @@ internal class WindowThread(
 			}
 			clear()
 		}
-	val slideSemaphores = ArrayList<Semaphore>()
 
 	fun addSlide(slide: Slide) {
 		if (!slideWindows.containsKey(slide)) {

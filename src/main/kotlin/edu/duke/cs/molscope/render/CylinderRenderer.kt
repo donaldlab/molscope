@@ -17,7 +17,7 @@ internal class CylinderRenderer(
 	companion object {
 
 		val vertexInput = VertexInput {
-			binding(stride = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4) {
+			binding(stride = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES) {
 				attribute(
 					location = 0,
 					format = Image.Format.R32G32B32_SFLOAT,
@@ -32,6 +32,11 @@ internal class CylinderRenderer(
 					location = 2,
 					format = Image.Format.R8G8B8A8_UNORM,
 					offset = Float.SIZE_BYTES*4
+				)
+				attribute(
+					location = 3,
+					format = Image.Format.R32_SINT,
+					offset = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4
 				)
 			}
 		}

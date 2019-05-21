@@ -5,64 +5,25 @@ import org.joml.Vector3dc
 
 
 /**
- * an efficient class for storing atom information
+ * a convenient class for storing atom information
  *
- * tries to avoid allocating memory for each atom individually,
- * which optimizes layout for rendering
- *
- * yet allows convenient access to individual atoms and their properties
+ * isn't directly used for rendering, so doesn't have to be super efficient
  */
-class Atoms(capacity: Int = 16): Iterable<Atom> {
+class Atoms private constructor(private val list: MutableList<Atom>): List<Atom> by list {
 
-	var size: Int = 0
-		private set
-
-	private val elements = ArrayList<Element>(capacity)
-	private val names = ArrayList<String>(capacity)
-	private val coords = ArrayList<Double>(capacity*3)
+	constructor (capacity: Int = 16) : this(ArrayList(capacity))
 
 	constructor(other: Atoms) : this(other.size) {
-		this.size = other.size
-		this.elements.addAll(other.elements)
-		this.names.addAll(other.names)
-		this.coords.addAll(other.coords)
+		this.list.addAll(other.list)
 	}
 	fun copy() = Atoms(this)
 
-	fun add(atom: Atom) {
-		elements.add(atom.element)
-		names.add(atom.name)
-		coords.add(atom.pos.x())
-		coords.add(atom.pos.y())
-		coords.add(atom.pos.z())
-		size += 1
-	}
-
-	override fun iterator() =
-		object : Iterator<Atom> {
-
-			private var i = 0
-
-			override fun hasNext() = i < size
-
-			override fun next() =
-				get(i)
-				.also { i += 1 }
-		}
+	fun add(atom: Atom) = list.add(atom)
 
 	private fun checkIndex(i: Int) {
 		if (i < 0 || i >= size) {
 			throw IllegalArgumentException("index $i is out of range [0,$size)")
 		}
-	}
-
-	operator fun get(i: Int): Atom {
-		checkIndex(i)
-		return Atom(
-			elements[i],
-			names[i],
-			Vector3d(coords[i*3], coords[i*3 + 1], coords[i*3 + 2])
-		)
 	}
 }
 

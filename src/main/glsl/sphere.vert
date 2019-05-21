@@ -3,18 +3,20 @@
 layout(location = 0) in vec3 inPosWorld;
 layout(location = 1) in float inRadiusWorld;
 layout(location = 2) in vec4 inColor;
+layout(location = 3) in int inIndex;
 
 layout(location = 0) out vec3 outPosCamera;
 layout(location = 1) out float outRadiusCamera;
 layout(location = 2) out vec2 outRadiusClip;
 layout(location = 3) out vec4 outColor;
+layout(location = 4) out int outIndex;
 
 #include "view.glsl"
 
 
 void main() {
 
-	// NOTE: vertex shaders convert from world space posto clip space
+	// NOTE: vertex shaders convert from world space to clip space
 	// via world -> camera -> NDC -> clip
 
 	// transform from world to camera space
@@ -31,4 +33,5 @@ void main() {
 	outRadiusCamera = inRadiusWorld;
 	outRadiusClip = radiusClip;
 	outColor = inColor;
+	outIndex = inIndex;
 }

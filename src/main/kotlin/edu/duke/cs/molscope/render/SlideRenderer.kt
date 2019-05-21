@@ -36,6 +36,13 @@ internal class SlideRenderer(
 			// finish this on ShaderReadOnlyOptimal, so WindowRenderer can sample it
 			finalLayout = Image.Layout.ShaderReadOnlyOptimal
 		)
+	val indexAttachment =
+		Attachment(
+			format = Image.Format.R32_SINT,
+			loadOp = LoadOp.Clear,
+			storeOp =  StoreOp.Store,
+			finalLayout = Image.Layout.ShaderReadOnlyOptimal
+		)
 	val depthAttachment =
 		Attachment(
 			format = Image.Format.D32_SFLOAT,
@@ -43,18 +50,18 @@ internal class SlideRenderer(
 			storeOp = StoreOp.Store,
 			finalLayout = Image.Layout.DepthStencilAttachmentOptimal
 		)
-	// TODO: output attachments for object picking?
 	val subpass =
 		Subpass(
 			pipelineBindPoint = PipelineBindPoint.Graphics,
 			colorAttachments = listOf(
-				colorAttachment to Image.Layout.ColorAttachmentOptimal
+				colorAttachment to Image.Layout.ColorAttachmentOptimal,
+				indexAttachment to Image.Layout.ColorAttachmentOptimal
 			),
 			depthStencilAttachment = depthAttachment to Image.Layout.DepthStencilAttachmentOptimal
 		)
 	val renderPass = device
 		.renderPass(
-			attachments = listOf(colorAttachment, depthAttachment),
+			attachments = listOf(colorAttachment, indexAttachment, depthAttachment),
 			subpasses = listOf(subpass),
 			subpassDependencies = listOf(
 				SubpassDependency(
@@ -69,7 +76,7 @@ internal class SlideRenderer(
 			)
 		).autoClose()
 
-	// make the render image
+	// make the render images
 	val image = device
 		.image(
 			Image.Type.TwoD,
@@ -81,7 +88,20 @@ internal class SlideRenderer(
 		.allocateDevice()
 		.autoClose()
 	val imageView = image.image.view().autoClose()
-	val imageSampler = device.sampler().autoClose()
+
+	val indexImage = device
+		.image(
+			Image.Type.TwoD,
+			extent.to3D(1),
+			indexAttachment.format,
+			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Sampled)
+		)
+		.autoClose()
+		.allocateDevice()
+		.autoClose()
+	val indexView = indexImage.image.view().autoClose()
+
+	val sampler = device.sampler().autoClose()
 
 	// make the depth buffer
 	val depth = device
@@ -103,7 +123,7 @@ internal class SlideRenderer(
 	val framebuffer = device
 		.framebuffer(
 			renderPass,
-			imageViews = listOf(imageView, depthView),
+			imageViews = listOf(imageView, indexView, depthView),
 			extent = extent
 		)
 		.autoClose()
@@ -186,6 +206,8 @@ internal class SlideRenderer(
 		)),
 		scissors = listOf(rect),
 		colorAttachmentBlends = mapOf(
+
+			// use typical alpha blending
 			colorAttachment to ColorBlendState.Attachment(
 				color = ColorBlendState.Attachment.Part(
 					src = BlendFactor.SrcAlpha,
@@ -196,6 +218,20 @@ internal class SlideRenderer(
 					src = BlendFactor.One,
 					dst = BlendFactor.One,
 					op = BlendOp.Max
+				)
+			),
+
+			// always overwrite the dest (framebuf) values
+			indexAttachment to ColorBlendState.Attachment(
+				color = ColorBlendState.Attachment.Part(
+					src = BlendFactor.One,
+					dst = BlendFactor.Zero,
+					op = BlendOp.Add
+				),
+				alpha = ColorBlendState.Attachment.Part(
+					src = BlendFactor.One,
+					dst = BlendFactor.Zero,
+					op = BlendOp.Add
 				)
 			)
 		),
@@ -274,6 +310,7 @@ internal class SlideRenderer(
 				rect,
 				clearValues = mapOf(
 					colorAttachment to backgroundColor.toClearColor(),
+					indexAttachment to ClearValue.Color.Int(-1, -1, -1, -1), // -1 as int
 					depthAttachment to ClearValue.DepthStencil(depth = 1f)
 				)
 			)

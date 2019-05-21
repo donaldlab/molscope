@@ -27,6 +27,7 @@ class VulkanDevice(
 				severities = IntFlags.of(DebugMessenger.Severity.Error, DebugMessenger.Severity.Warning)
 			) { severity, type, msg ->
 				println("VULKAN: ${severity.toFlagsString()} ${type.toFlagsString()} $msg")
+				Exception("Stack Trace").printStackTrace(System.out)
 			}.autoClose()
 		}
 
@@ -40,5 +41,6 @@ class VulkanDevice(
 	val deviceFeatures = PhysicalDevice.Features().apply {
 		geometryShader = true
 		fragmentStoresAndAtomics = true
+		independentBlend = true
 	}
 }

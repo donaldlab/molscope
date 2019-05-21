@@ -7,10 +7,12 @@ layout(location = 0) in vec3 inPosCamera[1];
 layout(location = 1) in float inRadiusCamera[1];
 layout(location = 2) in vec2 inRadiusClip[1];
 layout(location = 3) in vec4 inColor[1];
+layout(location = 4) in int inIndex[1];
 
 layout(location = 0) out vec3 outPosCamera;
 layout(location = 1) out float outRadiusCamera;
 layout(location = 2) out vec4 outColor;
+layout(location = 3) out int outIndex;
 
 #include "view.glsl"
 
@@ -21,6 +23,7 @@ void emitVertex(float deltaClipX, float deltaClipY) {
 	outPosCamera = inPosCamera[0];
 	outRadiusCamera = inRadiusCamera[0];
 	outColor = inColor[0];
+	outIndex = inIndex[0];
 	EmitVertex();
 }
 

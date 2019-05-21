@@ -1,10 +1,12 @@
 #version 450
 
-layout(location = 0) in vec3 inPosCamera[2];
-layout(location = 2) in float inRadiusCamera[2];
-layout(location = 4) in vec4 inColor[2];
+layout(location = 0) flat in vec3 inPosCamera[2];
+layout(location = 2) flat in float inRadiusCamera[2];
+layout(location = 4) flat in vec4 inColor[2];
+layout(location = 6) flat in int inIndex[2];
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out int outIndex;
 layout (depth_any) out; // float gl_FragDepth
 
 #include "view.glsl"
@@ -92,15 +94,11 @@ void main() {
 		vec3 center = posCylinder + tCylinder*len*axisCylinder;
 		vec3 normal = normalize(posPixelCamera - center);
 
-		// pick which color
-		vec4 color;
-		if (tCylinder <= 0.5) {
-			color = inColor[0];
-		} else {
-			color = inColor[1];
-		}
+		// pick which end to use based on the cylinder parameter
+		uint iEnd = tCylinder <= 0.5 ? 0 : 1;
 
-		outColor = light(color, normal);
+		outColor = light(inColor[iEnd], normal);
+		outIndex = inIndex[iEnd];
 		gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
 	} else {
@@ -136,16 +134,16 @@ void main() {
 
 			// yup, found an endcap
 			posPixelCamera.z = zEndcap[iEndcap];
-			vec3 normal = normalEndcap[iEndcap];
-			vec4 color = inColor[iEndcap];
 
-			outColor = light(color, normal);
+			outColor = light(inColor[iEndcap], normalEndcap[iEndcap]);
+			outIndex = inIndex[iEndcap];
 			gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
 		} else {
 
 			// no intersection
 			outColor = vec4(0);
+			outIndex = -1;
 			gl_FragDepth = 1;
 		}
 	}

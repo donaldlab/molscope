@@ -35,7 +35,7 @@ class BallAndStick(
 				// use native byte ordering so we can efficiently copy to the GPU
 				order(ByteOrder.nativeOrder())
 
-				for (atom in mol.atoms) {
+				mol.atoms.forEachIndexed { atomIndex, atom ->
 
 					// downgrade atom pos to floats for rendering
 					putFloat(atom.pos.x().toFloat())
@@ -46,6 +46,9 @@ class BallAndStick(
 						putFloat(atomRadius)
 						putColor4Bytes(color)
 					}
+
+					// TODO: allow different indexing strategies (eg residue, molecule)
+					putInt(atomIndex)
 				}
 				flip()
 			}
@@ -62,7 +65,7 @@ class BallAndStick(
 				// use native byte ordering so we can efficiently copy to the GPU
 				order(ByteOrder.nativeOrder())
 
-				for (atom in mol.atoms) {
+				mol.atoms.forEachIndexed { atomIndex, atom ->
 
 					// downgrade atom pos to floats for rendering
 					putFloat(atom.pos.x().toFloat())
@@ -71,6 +74,9 @@ class BallAndStick(
 
 					putFloat(bondRadius)
 					putColor4Bytes(ElementProps[atom].color)
+
+					// TODO: allow different indexing strategies (eg residue, molecule)
+					putInt(atomIndex)
 				}
 				flip()
 			}
@@ -100,7 +106,7 @@ class BallAndStick(
 				val x = sphereRenderable.vertexBuf.float
 				val y = sphereRenderable.vertexBuf.float
 				val z = sphereRenderable.vertexBuf.float
-				sphereRenderable.vertexBuf.skip(8)
+				sphereRenderable.vertexBuf.skip(12)
 
 				if (i == 0) {
 					setMin(x - r, y - r, z - r)
