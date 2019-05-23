@@ -15,7 +15,7 @@ import java.nio.ByteOrder
 
 
 /**
- * create a view of the molecule at this point in time
+ * views a molecule using the space-filling sphere convention
  */
 // TODO: optimize molecule transformations so we don't have to re-create the whole view for a large molecule?
 class SpaceFilling(
@@ -74,6 +74,13 @@ class SpaceFilling(
 			}
 			sphereRenderable.vertexBuf.rewind()
 		}
+
+	// save atom for index lookups
+	private val atoms = mol.atoms.copy()
+
+	override fun getIndexed(index: Int) = atoms.getOrNull(index)
+	// TODO: allow indexing other things?
+
 
 	private data class ElementProps(
 		val radius: Float,

@@ -3,10 +3,7 @@ package edu.duke.cs.molscope.gui
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.AutoCloser
-import cuchaz.kludge.vulkan.Offset2D
-import cuchaz.kludge.vulkan.Queue
-import cuchaz.kludge.vulkan.Semaphore
-import cuchaz.kludge.vulkan.semaphore
+import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.render.SlideRenderer
 import org.joml.Vector2f
@@ -79,7 +76,8 @@ internal class SlideWindow(
 		}
 	}
 
-	var showHovers: Boolean = false
+	// TODO: allow configurable hover/selection mode?
+	var showHovers: Boolean = true
 
 	fun render(slide: Slide.Locked, renderFinished: Semaphore): Boolean {
 		val rendererInfo = rendererInfo ?: return false
@@ -91,18 +89,24 @@ internal class SlideWindow(
 	// GUI state
 	private val contentMin = Vector2f()
 	private val contentMax = Vector2f()
-	private val mousePos = Vector2f()
-	private val dragDelta = Vector2f()
+	private var hoverPos: Vector2f? = null
 	private var dragStartAngle = 0f
 	private var dragMode: DragMode = DragMode.RotateXY
 
-	private fun Commands.getDragAngle(): Float {
-		val renderer = rendererInfoOrThrow.renderer
-		mousePos
+	private fun Commands.getMouseOffset(out: Vector2f = Vector2f()) =
+		out
 			.apply { getMousePos(this) }
 			.sub(Vector2f().apply { getItemRectMin(this) })
-			.sub(renderer.extent.width.toFloat()/2, renderer.extent.height.toFloat()/2)
-		return atan2(mousePos.y, mousePos.x)
+
+	private fun Commands.getDragDelta(button: Int) =
+		Vector2f().apply { getMouseDragDelta(button, this) }
+
+	private fun getDragAngle(mousePos: Vector2f): Float {
+		val renderer = rendererInfoOrThrow.renderer
+		return atan2(
+			mousePos.y - renderer.extent.height.toFloat()/2,
+			mousePos.x - renderer.extent.width.toFloat()/2
+		)
 	}
 
 	fun gui(imgui: Commands) = imgui.apply {
@@ -123,81 +127,130 @@ internal class SlideWindow(
 		setCursorPos(contentMin)
 		image(rendererInfo.imageDesc)
 
-		val imageMin = Vector2f().apply { getItemRectMin(this) }
-
 		// draw a big invisible button over the image so we can capture mouse events
 		setCursorPos(contentMin)
 		invisibleButton("drag", rendererInfo.renderer.extent)
+
+		// translate ImGUI mouse inputs into events
 		if (isItemClicked(0)) {
-
-			rendererInfo.cameraRotator.capture()
-
-			// get the click pos relative to the image center, normalized by image size
-			val extent = rendererInfo.renderer.extent
-			mousePos
-				.apply { getMousePos(this) }
-				.sub(Vector2f().apply { getItemRectMin(this) })
-				.sub(extent.width.toFloat()/2, extent.height.toFloat()/2)
-				.mul(2f/extent.width, 2f/extent.height)
-				.apply {
-					x = abs(x)
-					y = abs(y)
-				}
-
-			// pick the drag mode based on the click pos
-			// if we're near the center, rotate about xy
-			// otherwise, rotate about z
-			val cutoff = 0.6
-			dragMode = if (mousePos.x < cutoff && mousePos.y < cutoff) {
-				DragMode.RotateXY
-			} else {
-				dragStartAngle = getDragAngle()
-				DragMode.RotateZ
-			}
-
+			handleLeftDown(rendererInfo, getMouseOffset())
 		}
 		if (isItemActive() && Imgui.io.mouse.buttonDown[0]) {
-
-			// apply the drag rotations
-			rendererInfo.cameraRotator.apply {
-				q.identity()
-				when (dragMode) {
-					DragMode.RotateXY -> {
-						getMouseDragDelta(0, dragDelta)
-						q.rotateAxis(dragDelta.x/100f, up)
-						q.rotateAxis(dragDelta.y/100f, side)
-					}
-					DragMode.RotateZ -> {
-						q.rotateAxis(getDragAngle() - dragStartAngle, look)
-					}
-				}
-				update()
-			}
+			handleLeftDrag(rendererInfo, getMouseOffset(), getDragDelta(0))
+		}
+		if (isItemClicked(1)) {
+			handleRightDown(rendererInfo, getMouseOffset())
 		}
 		if (isItemHovered()) {
 
-			// apply mouse wheel magnification
-			val delta = Imgui.io.mouse.wheel
-			if (delta != 0f) {
-				rendererInfo.renderer.camera.magnification *= 1f + delta/10f
+			// handle mouse position
+			var hoverPos = this@SlideWindow.hoverPos
+			if (hoverPos == null) {
+				hoverPos = getMouseOffset()
+				handleEnter(rendererInfo)
+			} else {
+				getMouseOffset(hoverPos)
 			}
+			this@SlideWindow.hoverPos = hoverPos
+			handleHover(rendererInfo)
 
-			if (showHovers) {
-
-				// get mouse pos relative to the slide framebuffer and send it to the renderer
-				rendererInfo.renderer.cursorPos = Offset2D(
-					(Imgui.io.mouse.x - imageMin.x).toInt(),
-					(Imgui.io.mouse.y - imageMin.y).toInt()
-				)
+			// handle mouse wheel
+			val wheelDelta = Imgui.io.mouse.wheel
+			if (wheelDelta != 0f) {
+				handleWheel(rendererInfo, wheelDelta)
 			}
 
 		} else {
 
-			// clear hover info in the renderer
-			rendererInfo.renderer.cursorPos = null
+			// handle mouse position
+			if (hoverPos != null) {
+				hoverPos = null
+				handleLeave(rendererInfo)
+			}
 		}
 
 		end()
+	}
+
+	private fun handleLeftDown(rendererInfo: RendererInfo, mousePos: Vector2f) {
+
+		// start a new camera rotation
+		rendererInfo.cameraRotator.capture()
+
+		// get the normalized click dist from center
+		val w = rendererInfo.renderer.extent.width.toFloat()
+		val h = rendererInfo.renderer.extent.height.toFloat()
+		val dx = abs(mousePos.x*2f/w - 1f)
+		val dy = abs(mousePos.y*2f/h - 1f)
+
+		// pick the drag mode based on the click pos
+		// if we're near the center, rotate about xy
+		// otherwise, rotate about z
+		val cutoff = 0.6
+		dragMode = if (dx < cutoff && dy < cutoff) {
+			DragMode.RotateXY
+		} else {
+			dragStartAngle = getDragAngle(mousePos)
+			DragMode.RotateZ
+		}
+	}
+
+	private fun handleLeftDrag(rendererInfo: RendererInfo, mousePos: Vector2f, delta: Vector2f) {
+
+		// apply the drag rotations
+		rendererInfo.cameraRotator.apply {
+			q.identity()
+			when (dragMode) {
+				DragMode.RotateXY -> {
+					q.rotateAxis(delta.x/100f, up)
+					q.rotateAxis(delta.y/100f, side)
+				}
+				DragMode.RotateZ -> {
+					q.rotateAxis(getDragAngle(mousePos) - dragStartAngle, look)
+				}
+			}
+			update()
+		}
+	}
+
+	private fun handleRightDown(rendererInfo: RendererInfo, mousePos: Vector2f) {
+
+		// what did we click on?
+		rendererInfo.renderer.cursorIndex?.let { cursorIndex ->
+
+			slide.lock {
+				val target = views[cursorIndex.viewIndex].getIndexed(cursorIndex.index)
+				// TEMP
+				println("clicked on: $target")
+			}
+		}
+	}
+
+	private fun handleEnter(rendererInfo: RendererInfo) {
+		// nothing to do yet
+	}
+
+	private fun handleLeave(rendererInfo: RendererInfo) {
+
+		// turn off the hover effects if needed
+		rendererInfo.renderer.cursorPos = null
+	}
+
+	private fun handleHover(rendererInfo: RendererInfo) {
+
+		// pass the hover pos to the renderer to turn on hover effects, if needed
+		if (showHovers) {
+
+			hoverPos?.let {
+				rendererInfo.renderer.cursorPos = it.toOffset()
+			}
+		}
+	}
+
+	private fun handleWheel(rendererInfo: RendererInfo, wheelDelta: Float) {
+
+		// apply mouse wheel magnification
+		rendererInfo.renderer.camera.magnification *= 1f + wheelDelta/10f
 	}
 }
 

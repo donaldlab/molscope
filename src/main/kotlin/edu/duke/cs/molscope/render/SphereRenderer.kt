@@ -113,14 +113,15 @@ internal class SphereRenderer(
 		)
 	}
 
-	fun render(cmdbuf: CommandBuffer, src: SphereRenderable) = cmdbuf.apply {
+	fun render(cmdbuf: CommandBuffer, src: SphereRenderable, viewIndex: Int) = cmdbuf.apply {
 
 		val entry = entries[src] ?: throw NoSuchElementException("call update() with this source, before render()")
 
 		// draw geometry
 		bindPipeline(graphicsPipeline)
-		bindDescriptorSet(slideRenderer.descriptorSet, graphicsPipeline)
+		bindDescriptorSet(slideRenderer.mainDescriptorSet, graphicsPipeline)
 		bindVertexBuffer(entry.vertexBuf.buffer)
+		pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment), viewIndex)
 		draw(vertices = src.numSpheres)
 	}
 }

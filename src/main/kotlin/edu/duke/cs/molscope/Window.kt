@@ -170,11 +170,11 @@ internal class WindowThread(
 				Windows.pollEvents()
 
 				// render the slides (if possible), and collect the semaphores of the ones we rendered
-				val slideSemaphores = slideWindows.values.mapNotNull { info ->
-					info.resizeIfNeeded()
-					info.slide.lock {
-						if (info.render(this, info.renderFinished)) {
-							info.renderFinished
+				val slideSemaphores = slideWindows.values.mapNotNull { slidewin ->
+					slidewin.resizeIfNeeded()
+					slidewin.slide.lock {
+						if (slidewin.render(this, slidewin.renderFinished)) {
+							slidewin.renderFinished
 						} else {
 							// slide doesn't have size info from the GUI yet
 							null
@@ -190,8 +190,8 @@ internal class WindowThread(
 						//showDemoWindow()
 
 						// draw the slides on the window
-						for (info in slideWindows.values) {
-							info.gui(this)
+						for (slidewin in slideWindows.values) {
+							slidewin.gui(this)
 						}
 
 						// TEMP: debug window

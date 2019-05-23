@@ -17,7 +17,7 @@ import java.nio.ByteOrder
 
 
 /**
- * create a view of the molecule at this point in time
+ * views a molecule using the ball and stick convention
  */
 class BallAndStick(
 	mol: Molecule
@@ -118,6 +118,14 @@ class BallAndStick(
 			}
 			sphereRenderable.vertexBuf.rewind()
 		}
+
+
+	// save atom for index lookups
+	private val atoms = mol.atoms.copy()
+
+	override fun getIndexed(index: Int) = atoms.getOrNull(index)
+	// TODO: allow indexing other things?
+
 
 	companion object {
 

@@ -40,7 +40,7 @@ class VulkanDevice(
 
 	val deviceFeatures = PhysicalDevice.Features().apply {
 		geometryShader = true
-		fragmentStoresAndAtomics = true
 		independentBlend = true
+		shaderStorageImageExtendedFormats = true
 	}
 }

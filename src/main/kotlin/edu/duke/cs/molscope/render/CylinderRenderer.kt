@@ -132,15 +132,16 @@ internal class CylinderRenderer(
 		)
 	}
 
-	fun render(cmdbuf: CommandBuffer, src: CylinderRenderable) = cmdbuf.apply {
+	fun render(cmdbuf: CommandBuffer, src: CylinderRenderable, viewIndex: Int) = cmdbuf.apply {
 
 		val entry = entries[src] ?: throw NoSuchElementException("call update() with this source, before render()")
 
 		// draw geometry
 		bindPipeline(graphicsPipeline)
-		bindDescriptorSet(slideRenderer.descriptorSet, graphicsPipeline)
+		bindDescriptorSet(slideRenderer.mainDescriptorSet, graphicsPipeline)
 		bindVertexBuffer(entry.vertexBuf.buffer)
 		bindIndexBuffer(entry.indexBuf.buffer, CommandBuffer.IndexType.UInt32)
+		pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment), viewIndex)
 		drawIndexed(indices = src.numIndices)
 	}
 }

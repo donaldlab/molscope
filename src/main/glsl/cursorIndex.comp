@@ -1,0 +1,14 @@
+#version 450
+
+layout(binding = 0, std140) buffer restrict Cursor {
+	int isActive;
+	// 4 bytes pad
+	ivec2 pos;
+	ivec2 index;
+} cursor;
+
+layout(binding = 2, r32i) uniform restrict readonly iimage2D inIndex;
+
+void main() {
+	cursor.index = imageLoad(inIndex, cursor.pos).rg;
+}

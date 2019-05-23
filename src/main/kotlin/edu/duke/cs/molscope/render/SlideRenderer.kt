@@ -6,6 +6,7 @@ import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.CameraCommand
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.view.BallAndStick
+import edu.duke.cs.molscope.view.RenderView
 import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector3f
 import java.nio.file.Paths
@@ -29,6 +30,8 @@ internal class SlideRenderer(
 	val rect = Rect2D(Offset2D(0, 0), extent)
 
 	var cursorPos: Offset2D? = null
+	var cursorIndex: CursorIndex? = null
+		private set
 
 	// make the main render pass
 	val colorAttachment =
@@ -41,7 +44,7 @@ internal class SlideRenderer(
 		)
 	val indexAttachment =
 		Attachment(
-			format = Image.Format.R32_SINT,
+			format = Image.Format.R32G32_SINT,
 			loadOp = LoadOp.Clear,
 			storeOp =  StoreOp.Store,
 			finalLayout = Image.Layout.ShaderReadOnlyOptimal
@@ -192,42 +195,50 @@ internal class SlideRenderer(
 
 	// make the descriptor pool
 	val descriptorPool = device.descriptorPool(
-		maxSets = 2,
+		maxSets = 3,
 		sizes = DescriptorType.Counts(
 			DescriptorType.UniformBuffer to 2,
-			DescriptorType.StorageImage to 2
+			DescriptorType.StorageBuffer to 2,
+			DescriptorType.StorageImage to 3
 		)
 	).autoClose()
 
-	// make the descriptor set
+	// make the main descriptor set
 	val viewBufBinding = DescriptorSetLayout.Binding(
 		binding = 0,
 		type = DescriptorType.UniformBuffer,
 		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Geometry, ShaderStage.Fragment)
 	)
-	val descriptorSetLayout = device.descriptorSetLayout(listOf(
+	val mainDescriptorSetLayout = device.descriptorSetLayout(listOf(
 		viewBufBinding
 	)).autoClose()
-	val descriptorSet = descriptorPool.allocate(listOf(descriptorSetLayout))[0]
+	val mainDescriptorSet = descriptorPool.allocate(listOf(mainDescriptorSetLayout))[0]
+
+	// make the cursor descriptor set
+	val cursorBufBinding = DescriptorSetLayout.Binding(
+		binding = 0,
+		type = DescriptorType.StorageBuffer,
+		// TODO: effects in geometry shader too? (eg, expand billboards for fades/blurs?)
+		stages = IntFlags.of(ShaderStage.Compute, ShaderStage.Fragment)
+	)
+	val indexImageBinding = DescriptorSetLayout.Binding(
+		binding = 2,
+		type = DescriptorType.StorageImage,
+		stages = IntFlags.of(ShaderStage.Compute, ShaderStage.Fragment)
+	)
+	val cursorDescriptorSetLayout = device.descriptorSetLayout(listOf(
+		cursorBufBinding, indexImageBinding
+	)).autoClose()
+	val cursorDescriptorSet = descriptorPool.allocate(listOf(cursorDescriptorSetLayout))[0]
 
 	// make the post descriptor set
-	val hoverBufBinding = DescriptorSetLayout.Binding(
-		binding = 0,
-		type = DescriptorType.UniformBuffer,
-		stages = IntFlags.of(ShaderStage.Fragment) // TODO: effects in geometry shader too? (eg, expand billboards for fades/blurs?)
-	)
 	val colorImageBinding = DescriptorSetLayout.Binding(
 		binding = 1,
 		type = DescriptorType.StorageImage,
 		stages = IntFlags.of(ShaderStage.Fragment)
 	)
-	val indexImageBinding = DescriptorSetLayout.Binding(
-		binding = 2,
-		type = DescriptorType.StorageImage,
-		stages = IntFlags.of(ShaderStage.Fragment)
-	)
 	val postDescriptorSetLayout = device.descriptorSetLayout(listOf(
-		hoverBufBinding, colorImageBinding, indexImageBinding
+		cursorBufBinding, colorImageBinding, indexImageBinding
 	)).autoClose()
 	val postDescriptorSet = descriptorPool.allocate(listOf(postDescriptorSetLayout))[0]
 
@@ -240,27 +251,48 @@ internal class SlideRenderer(
 		.autoClose()
 	val commandBuffer = commandPool.buffer()
 
-	val hoverBuf = device
+	// allocate the cursor buffer on the device
+	val cursorBufDevice = device
 		.buffer(
-			size = (Int.SIZE_BYTES*4).toLong(),
-			usage = IntFlags.of(Buffer.Usage.UniformBuffer, Buffer.Usage.TransferDst)
+			size = Int.SIZE_BYTES*6L,
+			usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferDst, Buffer.Usage.TransferSrc)
 		)
 		.autoClose()
 		.allocateDevice()
+		.autoClose()
+
+	// allocate another cursor buffer on the host
+	val cursorBufHost = device
+		.buffer(
+			size = cursorBufDevice.buffer.size,
+			usage = IntFlags.of(Buffer.Usage.TransferDst, Buffer.Usage.TransferSrc)
+		)
+		.autoClose()
+		.allocateHost()
 		.autoClose()
 
 	init {
 		// update the descriptor sets
 		device.updateDescriptorSets(
 			writes = listOf(
-				descriptorSet.address(viewBufBinding).write(
+				mainDescriptorSet.address(viewBufBinding).write(
 					buffers = listOf(
 						DescriptorSet.BufferInfo(camera.buf.buffer)
 					)
 				),
-				postDescriptorSet.address(hoverBufBinding).write(
+				cursorDescriptorSet.address(cursorBufBinding).write(
 					buffers = listOf(
-						DescriptorSet.BufferInfo(hoverBuf.buffer)
+						DescriptorSet.BufferInfo(cursorBufDevice.buffer)
+					)
+				),
+				cursorDescriptorSet.address(indexImageBinding).write(
+					images = listOf(
+						DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
+					)
+				),
+				postDescriptorSet.address(cursorBufBinding).write(
+					buffers = listOf(
+						DescriptorSet.BufferInfo(cursorBufDevice.buffer)
 					)
 				),
 				postDescriptorSet.address(colorImageBinding).write(
@@ -284,7 +316,10 @@ internal class SlideRenderer(
 	) = device.graphicsPipeline(
 		renderPass,
 		stages,
-		descriptorSetLayouts = listOf(descriptorSetLayout),
+		descriptorSetLayouts = listOf(mainDescriptorSetLayout),
+		pushConstantRanges = listOf(
+			PushConstantRange(IntFlags.of(ShaderStage.Fragment), Int.SIZE_BYTES)
+		),
 		vertexInput = vertexInput,
 		inputAssembly = inputAssembly,
 		rasterizationState = RasterizationState(
@@ -330,6 +365,15 @@ internal class SlideRenderer(
 		),
 		depthStencilState = DepthStencilState()
 	)
+
+	// make a compute shader to download the index under the cursor
+	private val cursorPipeline = device
+		.computePipeline(
+			stage = device.shaderModule(Paths.get("build/shaders/cursorIndex.comp.spv"))
+				.autoClose()
+				.stage("main", ShaderStage.Compute),
+			descriptorSetLayouts = listOf(cursorDescriptorSetLayout)
+		).autoClose()
 
 	private val postPipeline = device
 		.graphicsPipeline(
@@ -412,17 +456,16 @@ internal class SlideRenderer(
 		camera.upload()
 
 		// update the hover buffer
-		hoverBuf.transferHtoD { buf ->
+		cursorBufHost.memory.map { buf ->
 			val cursorPos = cursorPos
 			if (cursorPos != null) {
 				buf.putInt(1)
 				buf.skip(4)
 				buf.putInt(cursorPos.x)
 				buf.putInt(cursorPos.y)
+				buf.putInt(-1)
+				buf.putInt(-1)
 			} else {
-				buf.putInt(0)
-				buf.skip(4)
-				buf.putInt(0)
 				buf.putInt(0)
 			}
 			buf.flip()
@@ -431,6 +474,9 @@ internal class SlideRenderer(
 		// record the command buffer
 		commandBuffer.apply {
 			begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
+
+			// upload the cursor buffer
+			copyBuffer(cursorBufHost.buffer, cursorBufDevice.buffer)
 
 			// get the framebuffer attachments ready for rendering
 			pipelineBarrier(
@@ -466,14 +512,14 @@ internal class SlideRenderer(
 					depthAttachment to ClearValue.DepthStencil(depth = 1f)
 				)
 			)
-			for (view in slide.views) {
+			slide.views.forEachIndexed { i, view ->
 				when (view) {
 					is SpaceFilling -> {
-						sphereRenderer.render(this, view.sphereRenderable)
+						sphereRenderer.render(this, view.sphereRenderable, i)
 					}
 					is BallAndStick -> {
-						sphereRenderer.render(this, view.sphereRenderable)
-						cylinderRenderer.render(this, view.cylinderRenderable)
+						sphereRenderer.render(this, view.sphereRenderable, i)
+						cylinderRenderer.render(this, view.cylinderRenderable, i)
 					}
 				}
 			}
@@ -490,6 +536,37 @@ internal class SlideRenderer(
 					indexImage.image.barrier(
 						dstAccess = IntFlags.of(Access.ShaderRead),
 						newLayout = Image.Layout.General
+					)
+				)
+			)
+
+			cursorPos?.let { cursorPos ->
+
+				// figure out what was under the cursor
+				pipelineBarrier(
+					srcStage = IntFlags.of(PipelineStage.Transfer),
+					dstStage = IntFlags.of(PipelineStage.ComputeShader),
+					buffers = listOf(
+						cursorBufDevice.buffer.barrier(
+							dstAccess = IntFlags.of(Access.ShaderRead, Access.ShaderWrite)
+						)
+					)
+				)
+
+				bindPipeline(cursorPipeline)
+				bindDescriptorSet(cursorDescriptorSet, cursorPipeline)
+				dispatch(1)
+
+				// download the cursor buffer so we can read the index on the host side
+				copyBuffer(cursorBufDevice.buffer, cursorBufHost.buffer)
+			}
+
+			pipelineBarrier(
+				srcStage = IntFlags.of(PipelineStage.ComputeShader),
+				dstStage = IntFlags.of(PipelineStage.FragmentShader),
+				buffers = listOf(
+					cursorBufDevice.buffer.barrier(
+						dstAccess = IntFlags.of(Access.ShaderRead)
 					)
 				)
 			)
@@ -520,5 +597,27 @@ internal class SlideRenderer(
 					emptyList()
 				}
 		)
+
+		// read the cursor index, if any
+		if (cursorPos != null) {
+
+			// TODO: is there a more efficient wait mechanism here?
+			// we only need to wait for the buffer download, not the whole post-processing step
+			queue.waitForIdle()
+
+			cursorBufHost.memory.map { buf ->
+
+				buf.position(Int.SIZE_BYTES*4)
+				val index = buf.int
+				val viewIndex = buf.int
+
+				cursorIndex = CursorIndex(viewIndex, index)
+			}
+
+		} else {
+			cursorIndex = null
+		}
 	}
 }
+
+data class CursorIndex(val viewIndex: Int, val index: Int)
