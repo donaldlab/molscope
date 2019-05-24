@@ -10,6 +10,7 @@ import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.render.SlideRenderer
+import edu.duke.cs.molscope.view.ColorsMode
 import org.joml.Vector2f
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -85,7 +86,13 @@ internal class SlideWindow(
 
 	fun render(slide: Slide.Locked, renderFinished: Semaphore): Boolean {
 		val rendererInfo = rendererInfo ?: return false
-		rendererInfo.renderer.render(slide, renderFinished)
+		rendererInfo.renderer.apply {
+
+			// update the background color based on settings
+			backgroundColor = backgroundColors[ColorsMode.current]!!
+			
+			render(slide, renderFinished)
+		}
 		return true
 	}
 
@@ -114,10 +121,13 @@ internal class SlideWindow(
 		)
 	}
 
-	fun gui(imgui: Commands) = imgui.apply {
+	fun gui(imgui: Commands) = imgui.run {
 
 		// start the window
-		begin(slide.name)
+		if (!begin(slide.name)) {
+			end()
+			return
+		}
 
 		// track the window content area
 		getWindowContentRegionMin(contentMin)
@@ -125,7 +135,7 @@ internal class SlideWindow(
 
 		val rendererInfo = rendererInfo ?: run {
 			end()
-			return@apply
+			return
 		}
 
 		// draw the slide image
@@ -285,6 +295,11 @@ internal class SlideWindow(
 	}
 }
 
+
+private val backgroundColors = mapOf(
+	ColorsMode.Dark to ColorRGBA.Int(0, 0, 0),
+	ColorsMode.Light to ColorRGBA.Int(255, 255, 255)
+)
 
 private enum class DragMode {
 	RotateXY,

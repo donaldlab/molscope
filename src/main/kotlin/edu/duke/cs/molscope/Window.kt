@@ -1,9 +1,11 @@
 package edu.duke.cs.molscope
 
+import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.imgui.context
 import cuchaz.kludge.tools.AutoCloser
 import cuchaz.kludge.tools.IntFlags
+import cuchaz.kludge.tools.Ref
 import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.window.Monitors
 import cuchaz.kludge.window.Size
@@ -12,6 +14,7 @@ import cuchaz.kludge.window.Windows
 import edu.duke.cs.molscope.gui.SlideWindow
 import edu.duke.cs.molscope.render.VulkanDevice
 import edu.duke.cs.molscope.render.WindowRenderer
+import edu.duke.cs.molscope.view.ColorsMode
 import java.util.concurrent.CountDownLatch
 
 
@@ -158,6 +161,9 @@ internal class WindowThread(
 
 		// configure ImGUI
 		Imgui.io.configWindowsMoveFromTitleBarOnly = true
+
+		// start with dark colors by default (can change in main menu)
+		Imgui.styleColors = Imgui.StyleColors.Dark
 	}
 
 	var renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface).autoClose()
@@ -186,21 +192,12 @@ internal class WindowThread(
 				try {
 					renderer.render(slideSemaphores) {
 
-						// TEMP: demo window
-						//showDemoWindow()
+						renderMainMenu(this)
 
-						// draw the slides on the window
+						// draw the slide sub-windows
 						for (slidewin in slideWindows.values) {
 							slidewin.gui(this)
 						}
-
-						// TEMP: debug window
-						setNextWindowSize(400f, 200f)
-						begin("Rendering info")
-						text("display size: ${Imgui.io.displaySize.width} x ${Imgui.io.displaySize.height}")
-						text("frame time: ${String.format("%.3f", 1000f*Imgui.io.deltaTime)} ms")
-						text("FPS: ${String.format("%.3f", Imgui.io.frameRate)}")
-						end()
 					}
 				} catch (ex: SwapchainOutOfDateException) {
 
@@ -240,5 +237,94 @@ internal class WindowThread(
 		val info = slideWindows.remove(slide) ?: return false
 		info.close()
 		return true
+	}
+
+	// main menu state
+	private val showDemo = Ref.of(false)
+
+	// popups
+	private val about = Popup("about") {
+		text(Molscope.name)
+		text("v${Molscope.version}")
+		spacing()
+		text("Developed by the Donald Lab")
+		text("at Duke University")
+	}
+
+	private fun renderMainMenu(imgui: Commands) = imgui.run {
+
+		if (beginMainMenuBar()) {
+
+			if (beginMenu("File")) {
+
+				if (menuItem("Exit")) {
+					win.shouldClose = true
+				}
+
+				endMenu()
+			}
+
+			if (beginMenu("View")) {
+
+				if (beginMenu("Colors")) {
+					for (mode in ColorsMode.values()) {
+						if (selectable(mode.name, ColorsMode.current == mode)) {
+							ColorsMode.current = mode
+							Imgui.styleColors = when (mode) {
+								ColorsMode.Dark -> Imgui.StyleColors.Dark
+								ColorsMode.Light -> Imgui.StyleColors.Light
+							}
+						}
+
+					}
+					endMenu()
+				}
+
+				endMenu()
+			}
+
+			if (beginMenu("Help")) {
+
+				if (menuItem("About")) {
+					about.open = true
+				}
+
+				endMenu()
+			}
+
+			// enable developer-only tricks if needed
+			if (Molscope.dev && beginMenu("Dev")) {
+
+				if (menuItem("ImGUI Demo")) {
+					showDemo.value = true
+				}
+
+				endMenu()
+			}
+
+			endMainMenuBar()
+		}
+
+		// render the popups
+		about.render(this)
+		if (showDemo.value) {
+			showDemoWindow(showDemo)
+		}
+	}
+
+	class Popup(val id: String, val renderer: Commands.() -> Unit) {
+
+		var open: Boolean = false
+
+		fun render(imgui: Commands) = imgui.run {
+			if (open) {
+				open = false
+				openPopup(id)
+			}
+			if (beginPopup(id)) {
+				renderer()
+				endPopup()
+			}
+		}
 	}
 }
