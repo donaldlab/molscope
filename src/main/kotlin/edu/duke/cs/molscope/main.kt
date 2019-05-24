@@ -49,11 +49,11 @@ fun main() = autoCloser {
 
 	// prepare a slide for the molecule
 	val slide = Slide("Slide")
-	slide.lock {
+	slide.lock { s ->
 		// TEMP
-		//views.add(SpaceFilling(mol))
-		views.add(BallAndStick(mol))
-		camera.lookAtEverything()
+		//s.views.add(SpaceFilling(mol))
+		s.views.add(BallAndStick(mol))
+		s.camera.lookAtEverything()
 	}
 	win.slides.add(slide)
 

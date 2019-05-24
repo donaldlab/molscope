@@ -3,8 +3,12 @@ package edu.duke.cs.molscope.gui
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.AutoCloser
+import cuchaz.kludge.tools.toFloat
+import cuchaz.kludge.tools.x
+import cuchaz.kludge.tools.y
 import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.Slide
+import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.render.SlideRenderer
 import org.joml.Vector2f
 import kotlin.math.abs
@@ -92,6 +96,7 @@ internal class SlideWindow(
 	private var hoverPos: Vector2f? = null
 	private var dragStartAngle = 0f
 	private var dragMode: DragMode = DragMode.RotateXY
+	private var contextMenu: ContextMenu? = null
 
 	private fun Commands.getMouseOffset(out: Vector2f = Vector2f()) =
 		out
@@ -129,7 +134,9 @@ internal class SlideWindow(
 
 		// draw a big invisible button over the image so we can capture mouse events
 		setCursorPos(contentMin)
-		invisibleButton("drag", rendererInfo.renderer.extent)
+		invisibleButton("button", rendererInfo.renderer.extent)
+
+		val isContextMenuOpen = isPopupOpen(ContextMenu.id)
 
 		// translate ImGUI mouse inputs into events
 		if (isItemClicked(0)) {
@@ -138,35 +145,49 @@ internal class SlideWindow(
 		if (isItemActive() && Imgui.io.mouse.buttonDown[0]) {
 			handleLeftDrag(rendererInfo, getMouseOffset(), getDragDelta(0))
 		}
-		if (isItemClicked(1)) {
-			handleRightDown(rendererInfo, getMouseOffset())
-		}
-		if (isItemHovered()) {
 
-			// handle mouse position
-			var hoverPos = this@SlideWindow.hoverPos
-			if (hoverPos == null) {
-				hoverPos = getMouseOffset()
-				handleEnter(rendererInfo)
+		// handle context menus
+		if (!isContextMenuOpen) {
+			contextMenu = null
+
+			// update hover effects only when the context menu isn't open
+			if (isItemHovered()) {
+
+				// handle mouse position
+				var hoverPos = this@SlideWindow.hoverPos
+				if (hoverPos == null) {
+					hoverPos = getMouseOffset()
+					handleEnter(rendererInfo)
+				} else {
+					getMouseOffset(hoverPos)
+				}
+				this@SlideWindow.hoverPos = hoverPos
+				handleHover(rendererInfo)
+
+				// handle mouse wheel
+				val wheelDelta = Imgui.io.mouse.wheel
+				if (wheelDelta != 0f) {
+					handleWheel(rendererInfo, wheelDelta)
+				}
+
 			} else {
-				getMouseOffset(hoverPos)
-			}
-			this@SlideWindow.hoverPos = hoverPos
-			handleHover(rendererInfo)
 
-			// handle mouse wheel
-			val wheelDelta = Imgui.io.mouse.wheel
-			if (wheelDelta != 0f) {
-				handleWheel(rendererInfo, wheelDelta)
+				// handle mouse position
+				if (hoverPos != null) {
+					hoverPos = null
+					handleLeave(rendererInfo)
+				}
+			}
+		}
+		if (beginPopupContextItem(ContextMenu.id)) {
+
+			if (contextMenu == null) {
+				contextMenu = makeContextMenu(rendererInfo)
 			}
 
-		} else {
-
-			// handle mouse position
-			if (hoverPos != null) {
-				hoverPos = null
-				handleLeave(rendererInfo)
-			}
+			// render the context menu if we have one
+			contextMenu?.render(rendererInfo.renderer, imgui)
+			endPopup()
 		}
 
 		end()
@@ -213,17 +234,27 @@ internal class SlideWindow(
 		}
 	}
 
-	private fun handleRightDown(rendererInfo: RendererInfo, mousePos: Vector2f) {
+	private fun makeContextMenu(rendererInfo: RendererInfo): ContextMenu {
 
-		// what did we click on?
+		// did we click on something?
 		rendererInfo.renderer.cursorIndex?.let { cursorIndex ->
 
-			slide.lock {
-				val target = views[cursorIndex.viewIndex].getIndexed(cursorIndex.index)
-				// TEMP
-				println("clicked on: $target")
+			slide.lock { slide ->
+
+				// yup, what did we click on?
+				val target = slide.views[cursorIndex.viewIndex].getIndexed(cursorIndex.index)
+
+				// make a new context menu based on the target
+				return when (target) {
+					null -> ContextMenu.Close()
+					is Atom -> ContextMenu.AtomMenu(target)
+					else -> ContextMenu.StringMenu(target.toString())
+				}
 			}
 		}
+
+		// nope, kill the popup
+		return ContextMenu.Close()
 	}
 
 	private fun handleEnter(rendererInfo: RendererInfo) {
@@ -258,4 +289,40 @@ internal class SlideWindow(
 private enum class DragMode {
 	RotateXY,
 	RotateZ
+}
+
+
+private sealed class ContextMenu {
+
+	abstract fun render(renderer: SlideRenderer, imgui: Commands)
+
+	companion object {
+		const val id = "contextMenu"
+	}
+
+	class Close: ContextMenu() {
+		override fun render(renderer: SlideRenderer, imgui: Commands) = imgui.run {
+			closeCurrentPopup()
+		}
+	}
+
+	class AtomMenu(val atom: Atom): ContextMenu() {
+		override fun render(renderer: SlideRenderer, imgui: Commands) = imgui.run {
+
+			text("Atom: ${atom.name}")
+			text("\tat (%.3f,%.3f,%.3f)".format(atom.pos.x, atom.pos.y, atom.pos.y))
+
+			if (button("Center")) {
+				closeCurrentPopup()
+				// TODO: add translation animations
+				renderer.camera.lookAt(atom.pos.toFloat())
+			}
+		}
+	}
+
+	class StringMenu(val msg: String): ContextMenu() {
+		override fun render(renderer: SlideRenderer, imgui: Commands) = imgui.run {
+			text(msg)
+		}
+	}
 }

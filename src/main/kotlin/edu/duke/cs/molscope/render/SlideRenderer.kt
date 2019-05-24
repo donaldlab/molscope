@@ -6,7 +6,6 @@ import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.CameraCommand
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.view.BallAndStick
-import edu.duke.cs.molscope.view.RenderView
 import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector3f
 import java.nio.file.Paths

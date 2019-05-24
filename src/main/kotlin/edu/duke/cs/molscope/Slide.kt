@@ -19,16 +19,6 @@ class Slide(name: String) {
 	var name: String = name
 		private set
 
-	/**
-	 * lock this slide to prevent races with the renderer
-	 *
-	 * don't talk to the window while the slide is locked, or you might deadlock!
-	 */
-	fun <R> lock(block: Locked.() -> R): R =
-		synchronized(this) {
-			locked.block()
-		}
-
 	inner class Locked {
 
 		var name: String
@@ -66,7 +56,25 @@ class Slide(name: String) {
 
 		val camera = Camera()
 	}
-	private val locked = Locked()
+
+	/**
+	 * lock this slide to prevent races with the renderer
+	 *
+	 * don't talk to the window while the slide is locked, or you might deadlock!
+	 */
+	inline fun <R> lock(block: (Locked) -> R): R =
+		synchronized(this) {
+			block(_locked)
+		}
+
+	/**
+	 * DO NOT USE THIS WITHOUT SYNCHRONIZING ON SLIDE OR YOU WILL RACE THE RENDER THREAD
+	 * Use the lock() convenience method rather than accessing this directly
+	 *
+	 * If Kotlin/JVM were smarter, this would be private or internal
+	 * but as things are now, we can't inline lock() when this is private or internal ;_;
+	 */
+	val _locked = Locked()
 }
 
 

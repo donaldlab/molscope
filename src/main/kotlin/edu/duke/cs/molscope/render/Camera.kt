@@ -2,10 +2,7 @@ package edu.duke.cs.molscope.render
 
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
-import org.joml.AABBf
-import org.joml.Quaternionf
-import org.joml.Vector2f
-import org.joml.Vector3f
+import org.joml.*
 import java.lang.Float.min
 import java.nio.ByteBuffer
 
@@ -145,6 +142,12 @@ class Camera internal constructor(
 		side.rotate(q)
 		up.rotate(q)
 		look.rotate(q)
+	}
+
+	fun lookAt(target: Vector3fc) {
+
+		pos.add(target).sub(lookAt)
+		lookAt.set(target)
 	}
 
 	inner class Rotator {

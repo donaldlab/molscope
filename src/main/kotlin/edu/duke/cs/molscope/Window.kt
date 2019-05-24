@@ -172,12 +172,12 @@ internal class WindowThread(
 				// render the slides (if possible), and collect the semaphores of the ones we rendered
 				val slideSemaphores = slideWindows.values.mapNotNull { slidewin ->
 					slidewin.resizeIfNeeded()
-					slidewin.slide.lock {
-						if (slidewin.render(this, slidewin.renderFinished)) {
-							slidewin.renderFinished
+					slidewin.slide.lock { slide ->
+						if (slidewin.render(slide, slidewin.renderFinished)) {
+							return@mapNotNull slidewin.renderFinished
 						} else {
 							// slide doesn't have size info from the GUI yet
-							null
+							return@mapNotNull null
 						}
 					}
 				}
