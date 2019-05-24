@@ -30,9 +30,7 @@ internal class WindowRenderer(
 			device,
 			surfaceFormat = find(Image.Format.B8G8R8A8_UNORM, Image.ColorSpace.SRGB_NONLINEAR)
 				?: surfaceFormats.first().also { println("using fallback surface format: $it") },
-			presentMode = find(PresentMode.Mailbox)
-				?: find(PresentMode.FifoRelaxed)
-				?: find(PresentMode.Fifo)
+			presentMode = find(PresentMode.Fifo) // use strict FIFO for v-sync
 				?: presentModes.first().also { println("using fallback present mode: $it") },
 			oldSwapchain = oldRenderer?.swapchain
 		)
