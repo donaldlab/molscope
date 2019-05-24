@@ -16,6 +16,8 @@ repositories {
 dependencies {
 	compile(kotlin("stdlib-jdk8"))
 	compile("cuchaz:kludge")
+
+	// TODO: add kotlin-test
 }
 
 configure<JavaPluginConvention> {
@@ -66,4 +68,16 @@ tasks {
 	}
 
 	this["build"].dependsOn(compileShaders)
+
+	// tell gradle to write down the version number where the app can read it
+	processResources {
+
+		from(sourceSets["main"].resources.srcDirs) {
+			include("**/build.properties")
+			expand(
+				"version" to "$version",
+				"dev" to "true" // TEMP: set to false in "release" builds
+			)
+		}
+	}
 }
