@@ -1,19 +1,14 @@
 package edu.duke.cs.molscope.view
 
-import cuchaz.kludge.tools.expandToInclude
-import cuchaz.kludge.tools.skip
-import cuchaz.kludge.vulkan.ColorRGBA
+import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.putColor4Bytes
 import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.molecule.Element
 import edu.duke.cs.molscope.molecule.Molecule
 import edu.duke.cs.molscope.render.CylinderRenderable
-import edu.duke.cs.molscope.render.CylinderRenderer
 import edu.duke.cs.molscope.render.SphereRenderable
-import edu.duke.cs.molscope.render.SphereRenderer
 import org.joml.AABBf
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 
 /**
@@ -27,72 +22,57 @@ class BallAndStick(
 	// render the atoms as spheres
 	internal val sphereRenderable = object : SphereRenderable {
 
-		override val numSpheres = mol.atoms.size
+		override val numVertices = mol.atoms.size
 
-		override val vertexBuf =
-			ByteBuffer.allocate(SphereRenderer.vertexInput.size.toInt()*numSpheres).apply {
+		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
-				// use native byte ordering so we can efficiently copy to the GPU
-				order(ByteOrder.nativeOrder())
+			mol.atoms.forEachIndexed { atomIndex, atom ->
 
-				mol.atoms.forEachIndexed { atomIndex, atom ->
+				// downgrade atom pos to floats for rendering
+				buf.putFloat(atom.pos.x().toFloat())
+				buf.putFloat(atom.pos.y().toFloat())
+				buf.putFloat(atom.pos.z().toFloat())
 
-					// downgrade atom pos to floats for rendering
-					putFloat(atom.pos.x().toFloat())
-					putFloat(atom.pos.y().toFloat())
-					putFloat(atom.pos.z().toFloat())
-
-					ElementProps[atom].apply {
-						putFloat(atomRadius)
-						putColor4Bytes(color)
-					}
-
-					// TODO: allow different indexing strategies (eg residue, molecule)
-					putInt(atomIndex)
+				ElementProps[atom].apply {
+					buf.putFloat(atomRadius)
+					buf.putColor4Bytes(color[colorsMode])
 				}
-				flip()
+
+				// TODO: allow different indexing strategies (eg residue, molecule)
+				buf.putInt(atomIndex)
 			}
+		}
 	}
 
 	// render the bonds as cylinders
 	internal val cylinderRenderable = object : CylinderRenderable {
 
+		override val numVertices = mol.atoms.size
+
+		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
+			mol.atoms.forEachIndexed { atomIndex, atom ->
+
+				// downgrade atom pos to floats for rendering
+				buf.putFloat(atom.pos.x().toFloat())
+				buf.putFloat(atom.pos.y().toFloat())
+				buf.putFloat(atom.pos.z().toFloat())
+
+				buf.putFloat(bondRadius)
+				buf.putColor4Bytes(ElementProps[atom].color[colorsMode])
+
+				// TODO: allow different indexing strategies (eg residue, molecule)
+				buf.putInt(atomIndex)
+			}
+		}
+
 		override val numIndices = mol.bonds.size*2
 
-		override val vertexBuf =
-			ByteBuffer.allocate(CylinderRenderer.vertexInput.size.toInt()*mol.atoms.size).apply {
-
-				// use native byte ordering so we can efficiently copy to the GPU
-				order(ByteOrder.nativeOrder())
-
-				mol.atoms.forEachIndexed { atomIndex, atom ->
-
-					// downgrade atom pos to floats for rendering
-					putFloat(atom.pos.x().toFloat())
-					putFloat(atom.pos.y().toFloat())
-					putFloat(atom.pos.z().toFloat())
-
-					putFloat(bondRadius)
-					putColor4Bytes(ElementProps[atom].color)
-
-					// TODO: allow different indexing strategies (eg residue, molecule)
-					putInt(atomIndex)
-				}
-				flip()
+		override fun fillIndexBuffer(buf: ByteBuffer) {
+			for (bond in mol.bonds) {
+				buf.putInt(bond.i1)
+				buf.putInt(bond.i2)
 			}
-
-		override val indexBuf =
-			ByteBuffer.allocate(Int.SIZE_BYTES*numIndices).apply {
-
-				// use native byte ordering so we can efficiently copy to the GPU
-				order(ByteOrder.nativeOrder())
-
-				for (bond in mol.bonds) {
-					putInt(bond.i1)
-					putInt(bond.i2)
-				}
-				flip()
-			}
+		}
 	}
 
 	override fun calcBoundingBox() =
@@ -100,13 +80,11 @@ class BallAndStick(
 
 			val r = atomRadius
 
-			sphereRenderable.vertexBuf.rewind()
-			for (i in 0 until sphereRenderable.numSpheres) {
+			atoms.forEachIndexed { i, atom ->
 
-				val x = sphereRenderable.vertexBuf.float
-				val y = sphereRenderable.vertexBuf.float
-				val z = sphereRenderable.vertexBuf.float
-				sphereRenderable.vertexBuf.skip(12)
+				val x = atom.pos.x.toFloat()
+				val y = atom.pos.y.toFloat()
+				val z = atom.pos.z.toFloat()
 
 				if (i == 0) {
 					setMin(x - r, y - r, z - r)
@@ -116,7 +94,6 @@ class BallAndStick(
 					expandToInclude(x + r, y + r, z + r)
 				}
 			}
-			sphereRenderable.vertexBuf.rewind()
 		}
 
 
@@ -134,18 +111,19 @@ class BallAndStick(
 		private const val bondRadius = 0.2f
 	}
 
+	// TODO: allow overriding these in constructor args
 	private data class ElementProps(
-		val color: ColorRGBA.Int
+		val color: Color
 	) {
 
 		companion object {
 
 			operator fun get(atom: Atom) =
 				when (atom.element) {
-					Element.Hydrogen -> ElementProps(ColorRGBA.Int(200, 200, 200))
-					Element.Carbon -> ElementProps(ColorRGBA.Int(60, 60, 60))
-					Element.Nitrogen -> ElementProps(ColorRGBA.Int(20, 20, 200))
-					Element.Oxygen -> ElementProps(ColorRGBA.Int(200, 20, 20))
+					Element.Hydrogen -> ElementProps(ColorPalette.lightGrey)
+					Element.Carbon -> ElementProps(ColorPalette.darkGrey)
+					Element.Nitrogen -> ElementProps(ColorPalette.blue)
+					Element.Oxygen -> ElementProps(ColorPalette.red)
 				}
 		}
 	}

@@ -5,6 +5,7 @@ import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.tools.SIZE_BYTES
 import cuchaz.kludge.tools.diff
 import cuchaz.kludge.vulkan.*
+import edu.duke.cs.molscope.view.ColorsMode
 import java.nio.ByteBuffer
 import java.nio.file.Paths
 import java.util.*
@@ -13,34 +14,6 @@ import java.util.*
 internal class CylinderRenderer(
 	val slideRenderer: SlideRenderer
 ): AutoCloseable {
-
-	companion object {
-
-		val vertexInput = VertexInput {
-			binding(stride = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES) {
-				attribute(
-					location = 0,
-					format = Image.Format.R32G32B32_SFLOAT,
-					offset = 0
-				)
-				attribute(
-					location = 1,
-					format = Image.Format.R32_SFLOAT,
-					offset = Float.SIZE_BYTES*3
-				)
-				attribute(
-					location = 2,
-					format = Image.Format.R8G8B8A8_UNORM,
-					offset = Float.SIZE_BYTES*4
-				)
-				attribute(
-					location = 3,
-					format = Image.Format.R32_SINT,
-					offset = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4
-				)
-			}
-		}
-	}
 
 	private val closer = AutoCloser()
 	private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
@@ -61,12 +34,35 @@ internal class CylinderRenderer(
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),
-			vertexInput,
+			vertexInput = VertexInput {
+				binding(stride = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES) {
+					attribute(
+						location = 0,
+						format = Image.Format.R32G32B32_SFLOAT,
+						offset = 0
+					)
+					attribute(
+						location = 1,
+						format = Image.Format.R32_SFLOAT,
+						offset = Float.SIZE_BYTES*3
+					)
+					attribute(
+						location = 2,
+						format = Image.Format.R8G8B8A8_UNORM,
+						offset = Float.SIZE_BYTES*4
+					)
+					attribute(
+						location = 3,
+						format = Image.Format.R32_SINT,
+						offset = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4
+					)
+				}
+			},
 			inputAssembly = InputAssembly(InputAssembly.Topology.LineList)
 		)
 		.autoClose()
 
-	inner class Entry(src: CylinderRenderable): AutoCloseable {
+	inner class Entry(val src: CylinderRenderable): AutoCloseable {
 
 		private val closer = AutoCloser()
 		private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
@@ -75,40 +71,43 @@ internal class CylinderRenderer(
 		// allocate the vertex buffer on the GPU
 		val vertexBuf = slideRenderer.device
 			.buffer(
-				size = src.vertexBuf.capacity().toLong(),
+				size = src.numVertices*graphicsPipeline.vertexInput.size,
 				usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
 			)
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
-			.apply {
-
-				// upload the vertex buffer
-				transferHtoD { buf ->
-					src.vertexBuf.rewind()
-					buf.put(src.vertexBuf)
-					buf.flip()
-				}
-			}
 
 		// allocate the index buffer on the GPU
 		val indexBuf = slideRenderer.device
 			.buffer(
-				size = src.indexBuf.capacity().toLong(),
+				size = src.numIndices*Int.SIZE_BYTES.toLong(),
 				usage = IntFlags.of(Buffer.Usage.IndexBuffer, Buffer.Usage.TransferDst)
 			)
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
-			.apply {
 
-				// upload the index buffer
-				transferHtoD { buf ->
-					src.indexBuf.rewind()
-					buf.put(src.indexBuf)
-					buf.flip()
-				}
+		private val dirtyness = Dirtyness()
+
+		fun update(colorsMode: ColorsMode) {
+
+			// track state changes
+			dirtyness.update(colorsMode)
+			if (!dirtyness.isDirty) {
+				return
 			}
+
+			// update buffers
+			vertexBuf.transferHtoD { buf ->
+				src.fillVertexBuffer(buf, colorsMode)
+				buf.flip()
+			}
+			indexBuf.transferHtoD { buf ->
+				src.fillIndexBuffer(buf)
+				buf.flip()
+			}
+		}
 	}
 
 	private val entries = IdentityHashMap<CylinderRenderable,Entry>()
@@ -120,6 +119,8 @@ internal class CylinderRenderer(
 		}
 
 	fun update(sources: List<CylinderRenderable>) {
+
+		// add/remove entries
 		sources.diff(
 			entries,
 			added = { src ->
@@ -130,6 +131,11 @@ internal class CylinderRenderer(
 				entries.remove(src)
 			}
 		)
+
+		// update entries
+		for (entry in entries.values) {
+			entry.update(ColorsMode.current)
+		}
 	}
 
 	fun render(cmdbuf: CommandBuffer, src: CylinderRenderable, viewIndex: Int) = cmdbuf.apply {
@@ -148,7 +154,8 @@ internal class CylinderRenderer(
 
 
 internal interface CylinderRenderable {
+	val numVertices: Int
+	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)
 	val numIndices: Int
-	val vertexBuf: ByteBuffer
-	val indexBuf: ByteBuffer
+	fun fillIndexBuffer(buf: ByteBuffer)
 }
