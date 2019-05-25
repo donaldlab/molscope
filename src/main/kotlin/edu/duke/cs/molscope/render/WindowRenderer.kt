@@ -109,6 +109,8 @@ internal class WindowRenderer(
 
 	fun render(waitFor: List<Semaphore>? = null, blockGui: Commands.() -> Unit) {
 
+		var waited = false
+
 		try {
 
 			// get the next frame info
@@ -153,6 +155,9 @@ internal class WindowRenderer(
 				waitFor = waitSemaphores,
 				signalTo = listOf(renderFinished)
 			)
+			if (waitFor != null) {
+				waited = true
+			}
 			surfaceQueue.present(
 				swapchain,
 				imageIndex,
@@ -163,7 +168,7 @@ internal class WindowRenderer(
 		} catch (ex: SwapchainOutOfDateException) {
 
 			// we got interrupted before we could wait on the semaphores, so do that now
-			if (waitFor != null) {
+			if (waitFor != null && !waited) {
 				graphicsQueue.submit(
 					commandPool.buffer().apply {
 						begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
@@ -180,6 +185,4 @@ internal class WindowRenderer(
 			throw ex
 		}
 	}
-
-	fun waitForIdle() = device.waitForIdle()
 }

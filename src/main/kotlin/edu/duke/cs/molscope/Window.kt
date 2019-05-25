@@ -202,7 +202,7 @@ internal class WindowThread(
 				} catch (ex: SwapchainOutOfDateException) {
 
 					// re-create the renderer
-					renderer.waitForIdle()
+					device.waitForIdle()
 					renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer)
 						.autoClose(replace = renderer)
 
@@ -215,7 +215,7 @@ internal class WindowThread(
 		}
 
 		// wait for the device to finish before starting cleanup
-		renderer.waitForIdle()
+		device.waitForIdle()
 	}
 
 	val slideWindows = HashMap<Slide,SlideWindow>()
