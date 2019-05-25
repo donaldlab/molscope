@@ -1,6 +1,11 @@
 package edu.duke.cs.molscope
 
+import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.tools.*
+import edu.duke.cs.molscope.gui.Window
+import edu.duke.cs.molscope.gui.WindowCommands
+import edu.duke.cs.molscope.gui.WindowFeature
+import edu.duke.cs.molscope.gui.features.win.DevFps
 import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.SpaceFilling
@@ -127,7 +132,28 @@ fun main() = autoCloser {
 		title = "MolScope"
 	).autoClose()
 
-	// TODO: choose window menu features
+	// create a new window feature
+	win.features.add(object : WindowFeature("App", "Feature") {
+
+		val pOpen = Ref.of(false)
+
+		override fun menu(imgui: Commands, win: WindowCommands) = imgui.run {
+			if (menuItem("Feature")) {
+				pOpen.value = true
+			}
+		}
+
+		override fun gui(imgui: Commands, win: WindowCommands) = imgui.run {
+			if (pOpen.value) {
+				begin("Feature", pOpen)
+				text("my new feature!")
+				end()
+			}
+		}
+	})
+
+	// remove a feature
+	win.features.remove(DevFps.id)
 
 	// prepare a slide for the molecule
 	win.slides.add(Slide(mol.name).apply {

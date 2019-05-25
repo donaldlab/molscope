@@ -1,27 +1,31 @@
-package edu.duke.cs.molscope
+package edu.duke.cs.molscope.gui
 
-import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.imgui.context
 import cuchaz.kludge.tools.AutoCloser
 import cuchaz.kludge.tools.IntFlags
-import cuchaz.kludge.tools.Ref
 import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.window.Monitors
 import cuchaz.kludge.window.Size
 import cuchaz.kludge.window.Window as KWindow
 import cuchaz.kludge.window.Windows
-import edu.duke.cs.molscope.gui.SlideWindow
+import edu.duke.cs.molscope.Molscope
+import edu.duke.cs.molscope.Slide
+import edu.duke.cs.molscope.gui.features.FeatureId
+import edu.duke.cs.molscope.gui.features.win.*
 import edu.duke.cs.molscope.render.VulkanDevice
 import edu.duke.cs.molscope.render.WindowRenderer
-import edu.duke.cs.molscope.view.ColorsMode
 import java.util.concurrent.CountDownLatch
 
 
+/**
+ * Thread-safe API for the windowing system
+ */
 class Window(
 	title: String = "MolScope",
 	width: Int = 800,
-	height: Int = 600
+	height: Int = 600,
+	includeDefaultFeatures: Boolean = true
 ) : AutoCloseable {
 
 	// start the window and renderer on a dedicated thread
@@ -29,7 +33,7 @@ class Window(
 	private val latch = CountDownLatch(1)
 	private val thread =
 		Thread {
-			WindowThread(title, Size(width, height)).use {
+			WindowThread(title, Size(width, height), includeDefaultFeatures).use {
 				windowThread = it
 				latch.countDown()
 				windowThread.renderLoop()
@@ -64,7 +68,7 @@ class Window(
 	 * when on the caller thread, never access windowThread directly
 	 * always call sync() to access the windowThread at the right time
 	 */
-	private fun <R> sync(block: WindowThread.() -> R): R = synchronized(windowThread) { windowThread.block() }
+	private inline fun <R> sync(block: WindowThread.() -> R): R = synchronized(windowThread) { windowThread.block() }
 
 	var backgroundColor: ColorRGBA
 		get() = sync { renderer.backgroundColor }
@@ -73,7 +77,7 @@ class Window(
 
 	inner class Slides {
 
-		private val slides: ArrayList<Slide> = ArrayList()
+		private val slides = ArrayList<Slide>()
 
 		fun add(slide: Slide) {
 
@@ -95,12 +99,32 @@ class Window(
 		}
 	}
 	val slides = Slides()
+
+	inner class Features {
+
+		fun add(feature: WindowFeature) {
+			sync {
+				features.add(feature)
+			}
+		}
+
+		fun remove(id: FeatureId): Boolean {
+			sync {
+				return features.remove(id)
+			}
+		}
+	}
+	val features = Features()
 }
 
 
+/**
+ * Thread to manage window, rendering, etc
+ */
 internal class WindowThread(
 	title: String,
-	size: Size
+	size: Size,
+	includeDefaultFeatures: Boolean
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
@@ -168,6 +192,76 @@ internal class WindowThread(
 
 	var renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface).autoClose()
 
+	val slideWindows = HashMap<Slide,SlideWindow>()
+		.autoClose {
+			// cleanup any leftover slides
+			for (info in values) {
+				info.close()
+			}
+			clear()
+		}
+
+	fun addSlide(slide: Slide) {
+		if (!slideWindows.containsKey(slide)) {
+			slideWindows[slide] = SlideWindow(slide, graphicsQueue)
+		}
+	}
+
+	fun removeSlide(slide: Slide): Boolean {
+		val info = slideWindows.remove(slide) ?: return false
+		info.close()
+		return true
+	}
+
+	inner class Features {
+
+		val features = LinkedHashMap<String,LinkedHashMap<String,WindowFeature>>()
+
+		fun contains(id: FeatureId) =
+			(features[id.menu]?.get(id.name)) != null
+
+		fun add(feature: WindowFeature) {
+
+			// check for duplicates
+			if (contains(feature.id)) {
+				throw IllegalArgumentException("feature already exists in this window: $feature")
+			}
+
+			// add the feature
+			features
+				.computeIfAbsent(feature.id.menu) { LinkedHashMap() }
+				.put(feature.id.name, feature)
+		}
+
+		fun remove(id: FeatureId): Boolean {
+			val features = features[id.menu] ?: return false
+			return features.remove(id.name) != null
+		}
+	}
+	val features = Features().apply {
+
+		// init with built-in features if desired
+		if (includeDefaultFeatures) {
+			add(FileExit())
+			add(ViewColors())
+			add(HelpAbout())
+		}
+
+		// add dev-only features if desired
+		if (Molscope.dev) {
+			add(DevFps())
+			add(DevImguiDemo())
+		}
+	}
+
+	private val winCommands = object : WindowCommands {
+
+		override var shouldClose: Boolean
+			get() = win.shouldClose
+			set(value) { win.shouldClose = value }
+	}
+
+
 	fun renderLoop() {
 
 		while (!win.shouldClose) {
@@ -192,7 +286,27 @@ internal class WindowThread(
 				try {
 					renderer.render(slideSemaphores) {
 
-						renderMainMenu(this)
+						if (beginMainMenuBar()) {
+
+							// render window feature menus
+							for ((menu, features) in features.features) {
+								if (beginMenu(menu.capitalize())) {
+									for (feature in features.values) {
+										feature.menu(this, winCommands)
+									}
+									endMenu()
+								}
+							}
+
+							endMainMenuBar()
+						}
+
+						// render window feature guis
+						for ((menu, features) in features.features) {
+							for (feature in features.values) {
+								feature.gui(this, winCommands)
+							}
+						}
 
 						// draw the slide sub-windows
 						for (slidewin in slideWindows.values) {
@@ -216,138 +330,5 @@ internal class WindowThread(
 
 		// wait for the device to finish before starting cleanup
 		device.waitForIdle()
-	}
-
-	val slideWindows = HashMap<Slide,SlideWindow>()
-		.autoClose {
-			// cleanup any leftover slides
-			for (info in values) {
-				info.close()
-			}
-			clear()
-		}
-
-	fun addSlide(slide: Slide) {
-		if (!slideWindows.containsKey(slide)) {
-			slideWindows[slide] = SlideWindow(slide, graphicsQueue)
-		}
-	}
-
-	fun removeSlide(slide: Slide): Boolean {
-		val info = slideWindows.remove(slide) ?: return false
-		info.close()
-		return true
-	}
-
-	// main menu state
-	private val showDemo = Ref.of(false)
-
-	// popups
-	private val about = Popup("about") {
-		text(Molscope.name)
-		text("v${Molscope.version}")
-		spacing()
-		text("Developed by the Donald Lab")
-		text("at Duke University")
-	}
-
-	// sub-windows
-	private val fps = Subwin("fps") {
-		text("%.1f".format(Imgui.io.frameRate))
-	}
-
-	private fun renderMainMenu(imgui: Commands) = imgui.run {
-
-		if (beginMainMenuBar()) {
-
-			if (beginMenu("File")) {
-
-				if (menuItem("Exit")) {
-					win.shouldClose = true
-				}
-
-				endMenu()
-			}
-
-			if (beginMenu("View")) {
-
-				if (beginMenu("Colors")) {
-					for (mode in ColorsMode.values()) {
-						if (selectable(mode.name, ColorsMode.current == mode)) {
-							ColorsMode.current = mode
-							Imgui.styleColors = when (mode) {
-								ColorsMode.Dark -> Imgui.StyleColors.Dark
-								ColorsMode.Light -> Imgui.StyleColors.Light
-							}
-						}
-
-					}
-					endMenu()
-				}
-
-				endMenu()
-			}
-
-			if (beginMenu("Help")) {
-
-				if (menuItem("About")) {
-					about.open = true
-				}
-
-				endMenu()
-			}
-
-			// enable developer-only tricks if needed
-			if (Molscope.dev && beginMenu("Dev")) {
-
-				if (menuItem("FPS")) {
-					fps.isOpen.value = true
-				}
-
-				if (menuItem("ImGUI Demo")) {
-					showDemo.value = true
-				}
-
-				endMenu()
-			}
-
-			endMainMenuBar()
-		}
-
-		// render the popups, sub-windows, etc
-		about.render(this)
-		fps.render(this)
-		if (showDemo.value) {
-			showDemoWindow(showDemo)
-		}
-	}
-
-	class Popup(val id: String, val renderer: Commands.() -> Unit) {
-
-		var open: Boolean = false
-
-		fun render(imgui: Commands) = imgui.run {
-			if (open) {
-				open = false
-				openPopup(id)
-			}
-			if (beginPopup(id)) {
-				renderer()
-				endPopup()
-			}
-		}
-	}
-
-	class Subwin(val id: String, val renderer: Commands.() -> Unit) {
-
-		val isOpen = Ref.of(false)
-
-		fun render(imgui: Commands) = imgui.run {
-			if (isOpen.value) {
-				begin(id, isOpen)
-				renderer()
-				end()
-			}
-		}
 	}
 }
