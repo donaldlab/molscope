@@ -251,6 +251,11 @@ internal class WindowThread(
 		text("at Duke University")
 	}
 
+	// sub-windows
+	private val fps = Subwin("fps") {
+		text("%.1f".format(Imgui.io.frameRate))
+	}
+
 	private fun renderMainMenu(imgui: Commands) = imgui.run {
 
 		if (beginMainMenuBar()) {
@@ -295,6 +300,10 @@ internal class WindowThread(
 			// enable developer-only tricks if needed
 			if (Molscope.dev && beginMenu("Dev")) {
 
+				if (menuItem("FPS")) {
+					fps.isOpen.value = true
+				}
+
 				if (menuItem("ImGUI Demo")) {
 					showDemo.value = true
 				}
@@ -305,8 +314,9 @@ internal class WindowThread(
 			endMainMenuBar()
 		}
 
-		// render the popups
+		// render the popups, sub-windows, etc
 		about.render(this)
+		fps.render(this)
 		if (showDemo.value) {
 			showDemoWindow(showDemo)
 		}
@@ -324,6 +334,19 @@ internal class WindowThread(
 			if (beginPopup(id)) {
 				renderer()
 				endPopup()
+			}
+		}
+	}
+
+	class Subwin(val id: String, val renderer: Commands.() -> Unit) {
+
+		val isOpen = Ref.of(false)
+
+		fun render(imgui: Commands) = imgui.run {
+			if (isOpen.value) {
+				begin(id, isOpen)
+				renderer()
+				end()
 			}
 		}
 	}
