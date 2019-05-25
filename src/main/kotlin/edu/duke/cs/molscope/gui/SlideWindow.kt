@@ -124,6 +124,10 @@ internal class SlideWindow(
 	fun gui(imgui: Commands) = imgui.run {
 
 		// start the window
+		setNextWindowSizeConstraints(
+			320f, 240f,
+			Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY
+		)
 		if (!begin(slide.name)) {
 			end()
 			return
