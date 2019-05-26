@@ -19,7 +19,7 @@ layout(push_constant) uniform ViewIndex {
 
 float intersectSphereRay(vec3 p, float r, vec2 ray) {
 
-	// see math/sphere.wxmx for the derivation
+	// see math/sphere.wxm for the derivation
 	return p.z-sqrt(-ray.y*ray.y+2*p.y*ray.y-ray.x*ray.x+2*p.x*ray.x+r*r-p.y*p.y-p.x*p.x);
 }
 
