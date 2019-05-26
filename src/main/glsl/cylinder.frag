@@ -14,10 +14,9 @@ layout(push_constant) uniform ViewIndex {
 };
 
 #include "view.glsl"
+#include "math.glsl"
 #include "light.glsl"
 
-
-const float NAN = 0.0/0.0;
 
 float calcZEndcap(vec2 xy, uint i, vec3 normals[2]) {
 
@@ -38,21 +37,14 @@ float calcZEndcap(vec2 xy, uint i, vec3 normals[2]) {
 float[2] intersectCylinderRay(vec3 p, vec3 n, float r, float len, vec2 ray) {
 
 	// see math/cylinder.wxm for the derivation
+	// this got manually optimized a bit more too
 	float a1 = n.x*n.x;
 	float a2 = n.y*n.y;
 	float a3 = a2+a1;
-	float a4 = 1/a3;
-	float a5 = -a1;
-	float a6 = -a2;
-	float a7 = (a6+a5)*p.z;
-	float a8 = sqrt(a6+a5+1);
-	float a9 = sqrt(-a1*ray.y*ray.y+(2*n.x*n.y*ray.x+2*a1*p.y-2*n.x*n.y*p.x)*ray.y-a2*ray.x*ray.x+(2*a2*p.x-2*n.x*n.y*p.y)*ray.x+a3*r*r-a1*p.y*p.y+2*n.x*n.y*p.x*p.y-a2*p.x*p.x);
-	float z;
-	if (n.z < 0) {
-		z = -a4*(a9+a8*(n.y*ray.y+n.x*ray.x-n.y*p.y-n.x*p.x)+a7);
-	} else {
-		z = -a4*(a9+a8*(-n.y*ray.y-n.x*ray.x+n.y*p.y+n.x*p.x)+a7);
-	}
+	float a5 = (-a2-a1)*p.z;
+	float a6 = sqrt(-a1*ray.y*ray.y+(2*n.x*n.y*ray.x+2*a1*p.y-2*n.x*n.y*p.x)*ray.y-a2*ray.x*ray.x+(2*a2*p.x-2*n.x*n.y*p.y)*ray.x+a3*r*r-a1*p.y*p.y+2*n.x*n.y*p.x*p.y-a2*p.x*p.x);
+	float a7 = -n.z*(n.y*ray.y + n.x*ray.x - n.y*p.y - n.x*p.x);
+	float z = -(a6+a7+a5)/a3;
 
 	// get the normalized distance along the cylindrical axis
 	float t = dot(vec3(ray, z) - p, n)/len;

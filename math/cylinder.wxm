@@ -38,11 +38,26 @@ Compute the intesection of the cylinder and the ray
 /* [wxMaxima: input   start ] */
 intersectionn:solve(cylinder(nn,r(z)), z)$
 intersectionp:solve(cylinder(np,r(z)), z)$
-optimize([intersectionn[1],intersectionp[1]]);
+[intersectionn[1],intersectionp[1]];
 /* [wxMaxima: input   end   ] */
 /* [wxMaxima: answer  start ] */
 positive;
 /* [wxMaxima: answer  end   ] */
+
+
+/* [wxMaxima: input   start ] */
+optimize(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+psubst([sqrt(1-n_x^2-n_y^2)=abs(n_z)],%th(2));
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+optimize(%);
+/* [wxMaxima: input   end   ] */
 
 
 
