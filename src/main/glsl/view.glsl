@@ -1,4 +1,8 @@
 
+#ifndef _VIEW_GLSL_
+#define _VIEW_GLSL_
+
+
 layout(binding = 0, std140) uniform restrict readonly View {
 	vec3 cameraWorld;
 	// 4 bytes pad
@@ -113,3 +117,6 @@ vec2 cameraPerpendicularToClip(float d, float z) {
 float cameraZToClip(float z) {
 	return (z - view.zNearCamera)/(view.zFarCamera - view.zNearCamera);
 }
+
+
+#endif // _VIEW_GLSL_
