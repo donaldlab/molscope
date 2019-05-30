@@ -8,7 +8,7 @@ import java.util.ArrayList
  * Sample points on a sphere quasi-uniformly by choosing the midpoionts of the faces of a regular icosohedron.
  * Subdivide faces of the icosohedron (and project back to the sphere) as needed to get the desired resolution.
  */
-class SphereGrid() {
+class SphereGrid(): Iterable<Vector3d> {
 
 	class Face(a: Vector3d, b: Vector3d, c: Vector3d) {
 		
@@ -116,7 +116,7 @@ class SphereGrid() {
 		subdivide(subdivisions)
 	}
 
-	operator fun iterator(): Iterator<Vector3d> =
+	override fun iterator(): Iterator<Vector3d> =
 		faces.map { it.midpoint }.iterator()
 }
 

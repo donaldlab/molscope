@@ -6,13 +6,12 @@
 #include "math.glsl"
 
 
-layout(binding = 1) uniform sampler3D inOcclusionXY;
-layout(binding = 2) uniform sampler3D inOcclusionZ;
+layout(binding = 1) uniform isampler3D inOcclusion;
 
-layout(binding = 3, std140) uniform readonly restrict OcclusionField {
+layout(binding = 2, std140) uniform readonly restrict OcclusionField {
 	// (with padding to align vec3s at 16-byte boundaries)
 	ivec3 samples;
-	int pad1;
+	int maxOcclusion;
 	vec3 min; // in world space
 	float pad2;
 	vec3 max;
@@ -41,29 +40,7 @@ float sampleOcclusion(vec3 posField) {
 	vec3 pixelSize = vec3(1)/vec3(inOcclusionField.samples);
 	vec3 uvw = posField*(1 - pixelSize)/(vec3(inOcclusionField.samples) - vec3(1)) + pixelSize/2;
 
-	vec4 occlusionXY = texture(inOcclusionXY, uvw);
-	vec2 occlusionZ = texture(inOcclusionZ, uvw).rg;
-
-	/* TEMP
-	// get the occlusion for this direction
-	return 0
-		+ abs(n.x)*occlusionXY[n.x < 0 ? 0 : 1]
-		+ abs(n.y)*occlusionXY[n.y < 0 ? 2 : 3]
-		+ abs(n.z)*occlusionZ[n.z < 0 ? 0 : 1];
-	*/
-
-	/* TEMP
-	float ambient = 6
-		- occlusionXY[0]
-		- occlusionXY[1]
-		- occlusionXY[2]
-		- occlusionXY[3]
-		- occlusionZ[0]
-		- occlusionZ[1];
-	//return clamp(ambient, 0, 1);
-	return ambient/6;
-	*/
-	return occlusionZ[0];
+	return float(texture(inOcclusion, uvw).r)/float(inOcclusionField.maxOcclusion);
 }
 
 float nearestOcclusion(vec3 posField) {
@@ -84,7 +61,7 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 
 	// apply ambient occlusion if needed
 	// TODO: NEXTTIME: make a render settings buffer for the weight
-	const float ambientOcclusionWeight = 0; // TEMP
+	const float ambientOcclusionWeight = 1; // TEMP
 	if (ambientOcclusionWeight > 0) {
 		rgb *= 1 - ambientOcclusionWeight*sampleOcclusion(worldToOcclusionField(cameraToWorld(posCamera)));
 	}

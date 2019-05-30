@@ -199,7 +199,7 @@ internal class SlideRenderer(
 			DescriptorType.UniformBuffer to 2,
 			DescriptorType.StorageBuffer to 2,
 			DescriptorType.StorageImage to 3,
-			DescriptorType.CombinedImageSampler to 2
+			DescriptorType.CombinedImageSampler to 1
 		)
 	).autoClose()
 
@@ -209,23 +209,18 @@ internal class SlideRenderer(
 		type = DescriptorType.UniformBuffer,
 		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Geometry, ShaderStage.Fragment)
 	)
-	val renderOcclusionXYBinding = DescriptorSetLayout.Binding(
+	val occlusionImageBinding = DescriptorSetLayout.Binding(
 		binding = 1,
 		type = DescriptorType.CombinedImageSampler,
 		stages = IntFlags.of(ShaderStage.Fragment)
 	)
-	val renderOcclusionZBinding = DescriptorSetLayout.Binding(
-		binding = 2,
-		type = DescriptorType.CombinedImageSampler,
-		stages = IntFlags.of(ShaderStage.Fragment)
-	)
 	val boundsBinding = DescriptorSetLayout.Binding(
-		binding = 3,
+		binding = 2,
 		type = DescriptorType.UniformBuffer,
 		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Fragment)
 	)
 	val mainDescriptorSetLayout = device.descriptorSetLayout(listOf(
-		viewBufBinding, renderOcclusionXYBinding, renderOcclusionZBinding, boundsBinding
+		viewBufBinding, occlusionImageBinding, boundsBinding
 	)).autoClose()
 	val mainDescriptorSet = descriptorPool.allocate(mainDescriptorSetLayout)
 
@@ -314,7 +309,7 @@ internal class SlideRenderer(
 	}
 
 	/**
-	 * next descriptor set layout binding = 2
+	 * next descriptor set layout binding = 3
 	 * next push constant range offset = 16
 	 */
 	fun graphicsPipeline(
