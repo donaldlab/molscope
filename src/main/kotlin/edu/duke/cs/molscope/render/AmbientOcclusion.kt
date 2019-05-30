@@ -33,10 +33,10 @@ internal class AmbientOcclusion(
 	private val queue get() = slideRenderer.queue
 
 	private val descriptorPool = device.descriptorPool(
-		maxSets = 1,
+		maxSets = 2,
 		sizes = DescriptorType.Counts(
 			DescriptorType.StorageBuffer to 3,
-			DescriptorType.StorageImage to 1
+			DescriptorType.StorageImage to 3
 		)
 	).autoClose()
 
@@ -72,7 +72,33 @@ internal class AmbientOcclusion(
 				.stage("main", ShaderStage.Compute),
 			descriptorSetLayouts = listOf(descriptorSetLayout),
 			pushConstantRanges = listOf(
-				PushConstantRange(IntFlags.of(ShaderStage.Compute), Float.SIZE_BYTES*8)
+				PushConstantRange(IntFlags.of(ShaderStage.Compute), 16*2)
+			)
+		).autoClose()
+
+	// make the blur pipeline
+	private val occlusionInBinding = DescriptorSetLayout.Binding(
+		binding = 0,
+		type = DescriptorType.StorageImage,
+		stages = IntFlags.of(ShaderStage.Compute)
+	)
+	private val occlusionOutBinding = DescriptorSetLayout.Binding(
+		binding = 1,
+		type = DescriptorType.StorageImage,
+		stages = IntFlags.of(ShaderStage.Compute)
+	)
+	private val blurDescriptorSetLayout = device.descriptorSetLayout(listOf(
+		occlusionInBinding, occlusionOutBinding
+	)).autoClose()
+	private val blurDescriptorSet = descriptorPool.allocate(blurDescriptorSetLayout)
+	private val blurPipeline = device
+		.computePipeline(
+			stage = device.shaderModule(Paths.get("build/shaders/occlusionBlur.comp.spv"))
+				.autoClose()
+				.stage("main", ShaderStage.Compute),
+			descriptorSetLayouts = listOf(blurDescriptorSetLayout),
+			pushConstantRanges = listOf(
+				PushConstantRange(IntFlags.of(ShaderStage.Compute), 16*3)
 			)
 		).autoClose()
 
@@ -135,18 +161,32 @@ internal class AmbientOcclusion(
 			}
 			.map { it.toFloat() }
 
-		// allocate the occlusion image
+		val maxOcclusion get() = sphereGrid.size*2
+
+		// allocate the occlusion images
 		val occlusionImage = device
 			.image(
 				type = Image.Type.ThreeD,
 				extent = extent,
 				format = Image.Format.R32_SINT,
-				usage = IntFlags.of(Image.Usage.Storage, Image.Usage.Sampled, Image.Usage.TransferDst)
+				usage = IntFlags.of(Image.Usage.Storage, Image.Usage.TransferDst)
 			)
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
 		val occlusionView = occlusionImage.image.view().autoClose()
+
+		val blurredOcclusionImage = device
+			.image(
+				type = occlusionImage.image.type,
+				extent = extent,
+				format = occlusionImage.image.format,
+				usage = IntFlags.of(Image.Usage.Storage, Image.Usage.Sampled)
+			)
+			.autoClose()
+			.allocateDevice()
+			.autoClose()
+		val blurredOcclusionView = blurredOcclusionImage.image.view().autoClose()
 
 		// allocate the bounds buffer
 		val boundsBuf = device
@@ -168,8 +208,15 @@ internal class AmbientOcclusion(
 						DescriptorSet.ImageInfo(null, occlusionView, Image.Layout.General)
 					),
 
+					blurDescriptorSet.address(occlusionInBinding).write(
+						DescriptorSet.ImageInfo(null, occlusionView, Image.Layout.General)
+					),
+					blurDescriptorSet.address(occlusionOutBinding).write(
+						DescriptorSet.ImageInfo(null, blurredOcclusionView, Image.Layout.General)
+					),
+
 					slideRenderer.mainDescriptorSet.address(slideRenderer.occlusionImageBinding).write(
-						DescriptorSet.ImageInfo(sampler, occlusionView, Image.Layout.ShaderReadOnlyOptimal)
+						DescriptorSet.ImageInfo(sampler, blurredOcclusionView, Image.Layout.ShaderReadOnlyOptimal)
 					),
 					slideRenderer.mainDescriptorSet.address(slideRenderer.boundsBinding).write(
 						DescriptorSet.BufferInfo(boundsBuf.buffer)
@@ -376,26 +423,57 @@ internal class AmbientOcclusion(
 					commandBuffer.apply {
 						begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
 
-						// clear the occlusion image
+						// prep the occlusion images
 						pipelineBarrier(
 							srcStage = IntFlags.of(PipelineStage.TopOfPipe),
 							dstStage = IntFlags.of(PipelineStage.ComputeShader),
 							images = listOf(
 								field.occlusionImage.image.barrier(
+									dstAccess = IntFlags.of(Access.ShaderRead, Access.ShaderWrite),
+									newLayout = Image.Layout.General
+								),
+								field.blurredOcclusionImage.image.barrier(
 									dstAccess = IntFlags.of(Access.ShaderWrite),
 									newLayout = Image.Layout.General
 								)
 							)
 						)
+
+						// clear the occlusion image
 						clearImage(field.occlusionImage.image, Image.Layout.General, ClearValue.Color.Int(0, 0, 0, 0))
 
-						bindPipeline(pipeline)
-						bindDescriptorSet(descriptorSet, pipeline)
-						pushConstants(pipeline, IntFlags.of(ShaderStage.Compute),
-							box.minX, box.minY, box.minZ, 0f,
-							box.maxX, box.maxY, box.maxZ, 0f
-						)
-						dispatch(samples.size, field.sphereGrid.size)
+						memstack { mem ->
+
+							// run the occlusion kernel
+							bindPipeline(pipeline)
+							bindDescriptorSet(descriptorSet, pipeline)
+							pushConstants(pipeline, IntFlags.of(ShaderStage.Compute), mem.malloc(16*2).apply {
+								putFloats(box.minX, box.minY, box.minZ)
+								putFloat(0f) // padding
+								putFloats(box.maxX, box.maxY, box.maxZ)
+								putFloat(0f) // padding
+								flip()
+							})
+							dispatch(samples.size, field.sphereGrid.size)
+
+							// run the blur kernel
+							bindPipeline(blurPipeline)
+							bindDescriptorSet(blurDescriptorSet, blurPipeline)
+							pushConstants(blurPipeline, IntFlags.of(ShaderStage.Compute), mem.malloc(16*3).apply {
+								putFloats(box.minX, box.minY, box.minZ)
+								putFloat(0f) // padding
+								putFloats(box.maxX, box.maxY, box.maxZ)
+								putFloat(0f) // padding
+								putInts(
+									field.extent.width,
+									field.extent.height,
+									field.extent.depth
+								)
+								putInt(field.maxOcclusion)
+								flip()
+							})
+							dispatch(field.extent)
+						}
 
 						end()
 					}
@@ -404,77 +482,18 @@ internal class AmbientOcclusion(
 			}
 
 			// upload the occlusion field info for fragment shaders
-			val maxOcclusion = field.sphereGrid.size*2
 			field.boundsBuf.transferHtoD { buf ->
 				buf.putInts(
 					field.extent.width,
 					field.extent.height,
 					field.extent.depth
 				)
-				buf.putInt(maxOcclusion)
+				buf.putInt(field.maxOcclusion)
 				buf.putFloats(
 					box.minX, box.minY, box.minZ, 0f,
 					box.maxX, box.maxY, box.maxZ, 0f
 				)
 				buf.flip()
-			}
-
-			// TEMP
-			time("blur") {
-
-				// TEMP: blur the occlusion data
-				// TODO: do this on the GPU
-				field.occlusionImage.memory.map { buf ->
-
-					val (rowPitch, depthPitch) = field.occlusionImage.image.getSubresourceLayout()
-						.let { it.rowPitch.toInt() to it.depthPitch.toInt() }
-
-					fun Offset3D.address() = z*depthPitch + y*rowPitch + x*4
-
-					fun get(sample: Offset3D) =
-						buf.getInt(sample.address())
-
-					fun put(sample: Offset3D, occlusion: Int) {
-						buf.putInt(sample.address(), occlusion)
-					}
-
-					// apply a 3x3x3 blur kernel to the occlusion field
-					val weights = listOf(16, 9, 4, 1)
-					fun Int.isOutside() = this < maxOcclusion
-					val newOcclusions = samples.associateWith { sample ->
-						val occlusion = get(sample)
-
-						// get the occlusion neighborhood
-						// if this sample is inside a solid region, then omit it from the weighted average
-						val chosenOcclusions = ArrayList<Int>()
-						val chosenWeights = ArrayList<Int>()
-						sample.neighbors(field.extent, includeCenter = occlusion.isOutside())
-							.forEach { neighbor ->
-								val neighborOcclusion = get(neighbor)
-								if (neighborOcclusion.isOutside()) {
-									val weight = weights[neighbor.manhattanDistance(sample)]
-									chosenOcclusions.add(neighborOcclusion*weight)
-									chosenWeights.add(weight)
-								}
-							}
-
-						return@associateWith if (chosenOcclusions.isNotEmpty()) {
-
-							// replace current occlusion value with the weighted average
-							(chosenOcclusions.sum().toDouble()/chosenWeights.sum().toDouble()).toInt()
-
-						} else {
-
-							// no outside neighbors, just keep the original value
-							occlusion
-						}
-					}
-
-					// write the occlusions back
-					for ((sample, occlusion) in newOcclusions) {
-						put(sample, occlusion)
-					}
-				}
 			}
 		}
 	}
@@ -488,7 +507,7 @@ internal class AmbientOcclusion(
 			srcStage = IntFlags.of(PipelineStage.TopOfPipe),
 			dstStage = IntFlags.of(PipelineStage.FragmentShader),
 			images = listOf(
-				field.occlusionImage.image.barrier(
+				field.blurredOcclusionImage.image.barrier(
 					dstAccess = IntFlags.of(Access.ShaderRead),
 					newLayout = Image.Layout.ShaderReadOnlyOptimal
 				)

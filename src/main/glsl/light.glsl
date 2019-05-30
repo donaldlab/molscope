@@ -56,12 +56,18 @@ vec3 worldToOcclusionField(vec3 posWorld) {
 
 vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 
-	// apply lighting
-	vec3 rgb = pbrLambert(color.rgb, normalCamera);
+	vec3 rgb = vec3(1, 1, 1);
+
+	// TODO: NEXTTIME: make a render settings buffer for the weight
+	const float lightingWeight = 1;
+	const float ambientOcclusionWeight = 1;
+
+	// apply lighting if neeed
+	if (lightingWeight > 0) {
+		rgb *= lightingWeight*pbrLambert(color.rgb, normalCamera);
+	}
 
 	// apply ambient occlusion if needed
-	// TODO: NEXTTIME: make a render settings buffer for the weight
-	const float ambientOcclusionWeight = 1; // TEMP
 	if (ambientOcclusionWeight > 0) {
 		rgb *= 1 - ambientOcclusionWeight*sampleOcclusion(worldToOcclusionField(cameraToWorld(posCamera)));
 	}
