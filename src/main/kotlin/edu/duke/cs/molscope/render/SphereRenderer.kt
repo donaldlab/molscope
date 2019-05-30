@@ -19,18 +19,20 @@ internal class SphereRenderer(
 	private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
 	private fun <R> R.autoClose(block: R.() -> Unit): R = apply { closer.add { block() } }
 	override fun close() = closer.close()
+	
+	private val device get() = slideRenderer.device
 
 	// make the graphics pipeline
 	val graphicsPipeline = slideRenderer
 		.graphicsPipeline(
 			listOf(
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/sphere.vert.spv"))
+				device.shaderModule(Paths.get("build/shaders/sphere.vert.spv"))
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/sphere.geom.spv"))
+				device.shaderModule(Paths.get("build/shaders/sphere.geom.spv"))
 					.autoClose()
 					.stage("main", ShaderStage.Geometry),
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/sphere.frag.spv"))
+				device.shaderModule(Paths.get("build/shaders/sphere.frag.spv"))
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),
@@ -69,7 +71,7 @@ internal class SphereRenderer(
 		override fun close() = closer.close()
 
 		// allocate the vertex buffer on the GPU
-		val vertexBuf = slideRenderer.device
+		val vertexBuf = device
 			.buffer(
 				size = src.numVertices*graphicsPipeline.vertexInput.size,
 				usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
@@ -77,7 +79,7 @@ internal class SphereRenderer(
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
-
+		
 		private val dirtyness = Dirtyness()
 
 		fun update(colorsMode: ColorsMode) {
@@ -132,7 +134,9 @@ internal class SphereRenderer(
 		bindPipeline(graphicsPipeline)
 		bindDescriptorSet(slideRenderer.mainDescriptorSet, graphicsPipeline)
 		bindVertexBuffer(entry.vertexBuf.buffer)
-		pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment), viewIndex)
+		pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment),
+			viewIndex, 0, 0, 0
+		)
 		draw(vertices = src.numVertices)
 	}
 }
@@ -141,4 +145,5 @@ internal class SphereRenderer(
 internal interface SphereRenderable {
 	val numVertices: Int
 	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)
+	fun fillOcclusionBuffer(buf: ByteBuffer)
 }

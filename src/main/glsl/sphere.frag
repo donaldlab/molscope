@@ -7,7 +7,7 @@ layout(location = 3) flat in int inIndex;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out ivec2 outIndex;
-layout (depth_less) out; // float gl_FragDepth
+layout(depth_less) out; // float gl_FragDepth
 
 layout(push_constant) uniform ViewIndex {
 	int inViewIndex;
@@ -39,7 +39,7 @@ void main() {
 		// calc the sphere normal
 		vec3 normal = normalize(posPixelCamera - inPosCamera);
 
-		outColor = light(inColor, normal);
+		outColor = light(inColor, posPixelCamera, normal);
 		outIndex = ivec2(inIndex, inViewIndex);
 		gl_FragDepth = cameraZToClip(posPixelCamera.z);
 

@@ -20,22 +20,41 @@ layout(binding = 0, std140) uniform restrict readonly View {
 
 
 //=========================
-// position transforms
+// direction transforms
 //=========================
-
 
 // camera space:
 // z points in the direction the camera is looking
 // y points towards the up direction
 // x is defined by applying the right-hand rule on y and z
 
-vec3 worldToCamera(vec3 v) {
-	v -= view.cameraWorld;
+vec3 dirWorldToCamera(vec3 v) {
 	return vec3(
 		dot(view.cameraSide, v),
 		dot(view.cameraUp, v),
 		dot(view.cameraLook, v)
 	);
+}
+
+vec3 dirCameraToWorld(vec3 v) {
+	return vec3(
+		dot(vec3(view.cameraSide.x, view.cameraUp.x, view.cameraLook.x), v),
+		dot(vec3(view.cameraSide.y, view.cameraUp.y, view.cameraLook.y), v),
+		dot(vec3(view.cameraSide.z, view.cameraUp.z, view.cameraLook.z), v)
+	);
+}
+
+
+//=========================
+// position transforms
+//=========================
+
+vec3 worldToCamera(vec3 v) {
+	return dirWorldToCamera(v - view.cameraWorld);
+}
+
+vec3 cameraToWorld(vec3 v) {
+	return dirCameraToWorld(v) + view.cameraWorld;
 }
 
 

@@ -147,7 +147,9 @@ internal class CylinderRenderer(
 		bindDescriptorSet(slideRenderer.mainDescriptorSet, graphicsPipeline)
 		bindVertexBuffer(entry.vertexBuf.buffer)
 		bindIndexBuffer(entry.indexBuf.buffer, CommandBuffer.IndexType.UInt32)
-		pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment), viewIndex)
+		pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment),
+			viewIndex, 0, 0, 0
+		)
 		drawIndexed(indices = src.numIndices)
 	}
 }

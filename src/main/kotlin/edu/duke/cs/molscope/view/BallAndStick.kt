@@ -33,13 +33,25 @@ class BallAndStick(
 				buf.putFloat(atom.pos.y().toFloat())
 				buf.putFloat(atom.pos.z().toFloat())
 
+				buf.putFloat(atomRadius)
 				ElementProps[atom].apply {
-					buf.putFloat(atomRadius)
 					buf.putColor4Bytes(color[colorsMode])
 				}
 
 				// TODO: allow different indexing strategies (eg residue, molecule)
 				buf.putInt(atomIndex)
+			}
+		}
+
+		override fun fillOcclusionBuffer(buf: ByteBuffer) {
+
+			for (atom in atoms) {
+
+				// downgrade atom pos to floats for rendering
+				buf.putFloat(atom.pos.x.toFloat())
+				buf.putFloat(atom.pos.y.toFloat())
+				buf.putFloat(atom.pos.z.toFloat())
+				buf.putFloat(atomRadius)
 			}
 		}
 	}

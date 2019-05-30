@@ -1,0 +1,189 @@
+#version 450
+
+
+layout(push_constant, std140) uniform readonly restrict Bounds {
+	// (with padding to align vec3s at 16-byte boundaries)
+	vec3 min; // in world space
+	float pad0;
+	vec3 max;
+	float pad1;
+} inBounds;
+
+
+// list cardinal direction indices
+// NOTE: negative,positive pairs must be consecutive and in that order
+const uint DIR_XN = 0;
+const uint DIR_XP = 1;
+const uint DIR_YN = 2;
+const uint DIR_YP = 3;
+const uint DIR_ZN = 4;
+const uint DIR_ZP = 5;
+const uint NUM_DIRS = 6;
+
+
+// define the lines supporting the rays we want to cast
+#include "sphereGrid.glsl"
+#include "math.glsl"
+
+
+uint iRayNeg(uint il) {
+	return il*2;
+}
+uint iRayPos(uint il) {
+	return il*2 + 1;
+}
+
+
+// define the spherical input atoms
+// TODO: add cylinder occluders?
+
+struct Atom {
+	vec3 pos;
+	float radius;
+};
+
+layout(binding = 0, std140) buffer readonly restrict Atoms {
+	uint size;
+	uint pad0; // 12 bytes padding so buf is aligned to 16 bytes
+	uint pad1; // NOTE: don't do uint pad[3] here, that apparently screws up the alignment
+	uint pad2;
+	Atom buf[];
+} inAtoms;
+
+
+layout(binding = 1, std140) buffer readonly restrict Samples {
+	uvec4 size;
+	uvec4 buf[];
+} inSamples;
+
+layout(binding = 2, rgba8) uniform writeonly restrict image3D outOcclusionXY;
+layout(binding = 3, rg8) uniform writeonly restrict image3D outOcclusionZ;
+
+
+// p is sphere center
+// r is sphere radius
+// v is ray vector
+// returns the parameters of the line/ray along v at the (up to) two intersection points
+float[2] intersect(vec3 p, float r, vec3 v) {
+
+	// see math/ambient-occlusion.wxm for derivation
+	float a1 = v.x*v.x;
+	float a2 = v.y*v.y;
+	float a3 = v.z*v.z;
+	float a4 = 1/(a3+a2+a1);
+	float a5 = -(p.y*p.y);
+	float a6 = -(p.z*p.z);
+	float a7 = r*r;
+	float a8 = -(p.x*p.x);
+	float a9 = (a7+a5+a8)*a3+(2*p.y*p.z*v.y+2*p.x*p.z*v.x)*v.z+(a7+a6+a8)*a2+2*p.x*p.y*v.x*v.y+(a7+a6+a5)*a1;
+	float[2] result;
+	if (a9 < 0) {
+		result[0] = NAN;
+		result[1] = NAN;
+	} else {
+		float a10 = sqrt(a9);
+		float a11 = p.z*v.z;
+		float a12 = p.y*v.y;
+		float a13 = p.x*v.x;
+		// NOTE: the order of operations here apparently has a big effect on the solution accuracy
+		// the roundoff error must be very ill-conditioned here! =(
+		result[0] = a4*(((-a10 +a11)+a12)+a13);
+		result[1] = a4*((( a10 +a11)+a12)+a13);
+	}
+	return result;
+}
+
+const uint SIDE_NEG = 0;
+const uint SIDE_POS = 1;
+
+bool[2] getHit(float[2] t) {
+	bool result[2];
+	result[SIDE_NEG] = (!isnan(t[0]) && t[0] < 0) || (!isnan(t[1]) && t[1] < 0);
+	result[SIDE_POS] = (!isnan(t[0]) && t[0] >= 0) || (!isnan(t[1]) && t[1] >= 0);
+	return result;
+}
+
+
+// shoot rays in all directions from each sample point
+// what percentage of rays are obscured by atom spheres?
+// bin rays by cardinal direction
+
+void main() {
+
+	// read our sample
+	uvec3 id = inSamples.buf[gl_GlobalInvocationID.x].xyz;
+
+	// convert the id to a position in world space within the bounds
+	vec3 p = inBounds.min + vec3(id)*(inBounds.max - inBounds.min)/vec3(inSamples.size.xyz - uvec3(1));
+
+	// which rays are we still casting?
+	bool casting[NUM_RAYS];
+	for (uint i=0; i<NUM_RAYS; i++) {
+		casting[i] = true;
+	}
+
+	for (uint ia=0; ia<inAtoms.size; ia++) {
+		Atom atom = inAtoms.buf[ia];
+
+		// transform the atom into a coord system relative to the ray source
+		vec3 pos = atom.pos - p;
+
+		bool castRay = false;
+
+		for (uint il=0; il<NUM_LINES; il++) {
+
+			// are we still casting a ray on this line?
+			if (casting[iRayNeg(il)] || casting[iRayPos(il)]) {
+
+				// yup, intersect the atom sphere and line
+				bool[2] hit = getHit(intersect(pos, atom.radius, LINES[il].v));
+				castRay = true;
+
+				// update rays based on side hits
+				if (hit[SIDE_NEG] && casting[iRayNeg(il)]) {
+					casting[iRayNeg(il)] = false;
+				}
+				if (hit[SIDE_POS] && casting[iRayPos(il)]) {
+					casting[iRayPos(il)] = false;
+				}
+			}
+		}
+
+		// if we didn't cast any rays, we can stop early
+		if (!castRay) {
+			break;
+		}
+	}
+
+	// explicitly count the number of occlusions
+	uint occlusions = 0;
+	for (uint ir=0; ir<NUM_RAYS; ir++) {
+		if (!casting[ir]) {
+			occlusions++;
+		}
+	}
+
+	/* TEMP
+	// write out occlusion ratio in each cardinal direction for this point
+	imageStore(outOcclusionXY, ivec3(id), vec4(
+		float(dirOcclusions[DIR_XN])/float(NUM_RAYS_FOR_DIR[DIR_XN]),
+		float(dirOcclusions[DIR_XP])/float(NUM_RAYS_FOR_DIR[DIR_XP]),
+		float(dirOcclusions[DIR_YN])/float(NUM_RAYS_FOR_DIR[DIR_YN]),
+		float(dirOcclusions[DIR_YP])/float(NUM_RAYS_FOR_DIR[DIR_YP])
+	));
+	imageStore(outOcclusionZ, ivec3(id), vec4(
+		float(dirOcclusions[DIR_ZN])/float(NUM_RAYS_FOR_DIR[DIR_ZN]),
+		float(dirOcclusions[DIR_ZP])/float(NUM_RAYS_FOR_DIR[DIR_ZP]),
+		0,
+		0
+	));
+	*/
+
+	// write out the occlusion ratio
+	imageStore(outOcclusionZ, ivec3(id), vec4(
+		float(occlusions)/float(NUM_RAYS),
+		0,
+		0,
+		0
+	));
+}

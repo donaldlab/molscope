@@ -198,7 +198,8 @@ internal class SlideRenderer(
 		sizes = DescriptorType.Counts(
 			DescriptorType.UniformBuffer to 2,
 			DescriptorType.StorageBuffer to 2,
-			DescriptorType.StorageImage to 3
+			DescriptorType.StorageImage to 3,
+			DescriptorType.CombinedImageSampler to 2
 		)
 	).autoClose()
 
@@ -208,10 +209,25 @@ internal class SlideRenderer(
 		type = DescriptorType.UniformBuffer,
 		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Geometry, ShaderStage.Fragment)
 	)
+	val renderOcclusionXYBinding = DescriptorSetLayout.Binding(
+		binding = 1,
+		type = DescriptorType.CombinedImageSampler,
+		stages = IntFlags.of(ShaderStage.Fragment)
+	)
+	val renderOcclusionZBinding = DescriptorSetLayout.Binding(
+		binding = 2,
+		type = DescriptorType.CombinedImageSampler,
+		stages = IntFlags.of(ShaderStage.Fragment)
+	)
+	val boundsBinding = DescriptorSetLayout.Binding(
+		binding = 3,
+		type = DescriptorType.UniformBuffer,
+		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Fragment)
+	)
 	val mainDescriptorSetLayout = device.descriptorSetLayout(listOf(
-		viewBufBinding
+		viewBufBinding, renderOcclusionXYBinding, renderOcclusionZBinding, boundsBinding
 	)).autoClose()
-	val mainDescriptorSet = descriptorPool.allocate(listOf(mainDescriptorSetLayout))[0]
+	val mainDescriptorSet = descriptorPool.allocate(mainDescriptorSetLayout)
 
 	// make the cursor descriptor set
 	val cursorBufBinding = DescriptorSetLayout.Binding(
@@ -228,7 +244,7 @@ internal class SlideRenderer(
 	val cursorDescriptorSetLayout = device.descriptorSetLayout(listOf(
 		cursorBufBinding, indexImageBinding
 	)).autoClose()
-	val cursorDescriptorSet = descriptorPool.allocate(listOf(cursorDescriptorSetLayout))[0]
+	val cursorDescriptorSet = descriptorPool.allocate(cursorDescriptorSetLayout)
 
 	// make the post descriptor set
 	val colorImageBinding = DescriptorSetLayout.Binding(
@@ -239,7 +255,7 @@ internal class SlideRenderer(
 	val postDescriptorSetLayout = device.descriptorSetLayout(listOf(
 		cursorBufBinding, colorImageBinding, indexImageBinding
 	)).autoClose()
-	val postDescriptorSet = descriptorPool.allocate(listOf(postDescriptorSetLayout))[0]
+	val postDescriptorSet = descriptorPool.allocate(postDescriptorSetLayout)
 
 	// make a graphics command buffer
 	val commandPool = device
@@ -275,50 +291,45 @@ internal class SlideRenderer(
 		device.updateDescriptorSets(
 			writes = listOf(
 				mainDescriptorSet.address(viewBufBinding).write(
-					buffers = listOf(
-						DescriptorSet.BufferInfo(camera.buf.buffer)
-					)
+					DescriptorSet.BufferInfo(camera.buf.buffer)
 				),
+				// AmbientOcclusion updates the rest of the main bindings
 				cursorDescriptorSet.address(cursorBufBinding).write(
-					buffers = listOf(
-						DescriptorSet.BufferInfo(cursorBufDevice.buffer)
-					)
+					DescriptorSet.BufferInfo(cursorBufDevice.buffer)
 				),
 				cursorDescriptorSet.address(indexImageBinding).write(
-					images = listOf(
-						DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
-					)
+					DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
 				),
 				postDescriptorSet.address(cursorBufBinding).write(
-					buffers = listOf(
-						DescriptorSet.BufferInfo(cursorBufDevice.buffer)
-					)
+					DescriptorSet.BufferInfo(cursorBufDevice.buffer)
 				),
 				postDescriptorSet.address(colorImageBinding).write(
-					images = listOf(
-						DescriptorSet.ImageInfo(null, colorView, Image.Layout.General)
-					)
+					DescriptorSet.ImageInfo(null, colorView, Image.Layout.General)
 				),
 				postDescriptorSet.address(indexImageBinding).write(
-					images = listOf(
-						DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
-					)
+					DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
 				)
 			)
 		)
 	}
 
+	/**
+	 * next descriptor set layout binding = 2
+	 * next push constant range offset = 16
+	 */
 	fun graphicsPipeline(
 		stages: List<ShaderModule.Stage>,
-		vertexInput: VertexInput,
-		inputAssembly: InputAssembly
+		vertexInput: VertexInput = VertexInput(),
+		inputAssembly: InputAssembly,
+		descriptorSetLayouts: List<DescriptorSetLayout> = emptyList(),
+		pushConstantRanges: List<PushConstantRange> = emptyList()
 	) = device.graphicsPipeline(
 		renderPass,
 		stages,
-		descriptorSetLayouts = listOf(mainDescriptorSetLayout),
+		descriptorSetLayouts = listOf(mainDescriptorSetLayout) + descriptorSetLayouts,
 		pushConstantRanges = listOf(
-			PushConstantRange(IntFlags.of(ShaderStage.Fragment), Int.SIZE_BYTES)
-		),
+				PushConstantRange(IntFlags.of(ShaderStage.Fragment), 16)
+			) + pushConstantRanges,
 		vertexInput = vertexInput,
 		inputAssembly = inputAssembly,
 		rasterizationState = RasterizationState(
@@ -418,6 +429,11 @@ internal class SlideRenderer(
 	private val sphereRenderer = SphereRenderer(this).autoClose()
 	private val cylinderRenderer = CylinderRenderer(this).autoClose()
 
+	// TODO: don't re-create the field when we re-create the slide renderer on resizes
+	private val ambientOcclusion = AmbientOcclusion(this).autoClose()
+	private var renderAmbientOcclusion = true // TODO: tie this into the shader
+	private var renderAmbientOcclusionSamples = false
+
 	fun render(slide: Slide.Locked, renderFinished: Semaphore? = null) {
 
 		// update the renderers with views
@@ -425,19 +441,19 @@ internal class SlideRenderer(
 		// because these rendering details are internal, and the views are public API
 		// alas, kotlin doesn't allow mixing internal interfaces into public classes
 		// so, this is going to get a bit messy...
-		sphereRenderer.update(
-			slide.views.mapNotNull { when (it) {
-				is SpaceFilling -> it.sphereRenderable
-				is BallAndStick -> it.sphereRenderable
-				else -> null
-			}}
-		)
-		cylinderRenderer.update(
-			slide.views.mapNotNull { when (it) {
-				is BallAndStick -> it.cylinderRenderable
-				else -> null
-			}}
-		)
+		val sphereRenderables = slide.views.mapNotNull { when (it) {
+			is SpaceFilling -> it.sphereRenderable
+			is BallAndStick -> it.sphereRenderable
+			else -> null
+		}}
+		val cylinderRenderables = slide.views.mapNotNull { when (it) {
+			is BallAndStick -> it.cylinderRenderable
+			else -> null
+		}}
+
+		ambientOcclusion.update(sphereRenderables)
+		sphereRenderer.update(sphereRenderables)
+		cylinderRenderer.update(cylinderRenderables)
 
 		// update the camera
 		while (slide.camera.queue.isNotEmpty()) {
@@ -500,6 +516,8 @@ internal class SlideRenderer(
 				)
 			)
 
+			ambientOcclusion.barriers(this)
+
 			// draw all the views
 			beginRenderPass(
 				renderPass,
@@ -521,6 +539,9 @@ internal class SlideRenderer(
 						cylinderRenderer.render(this, view.cylinderRenderable, i)
 					}
 				}
+			}
+			if (renderAmbientOcclusionSamples) {
+				ambientOcclusion.render(this)
 			}
 			endRenderPass()
 

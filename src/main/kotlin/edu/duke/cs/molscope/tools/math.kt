@@ -1,4 +1,4 @@
-package edu.duke.cs.molscope
+package edu.duke.cs.molscope.tools
 
 import org.joml.AABBf
 import org.joml.Vector3f

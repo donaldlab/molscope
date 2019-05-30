@@ -1,0 +1,50 @@
+/* [wxMaxima batch file version 1] [ DO NOT EDIT BY HAND! ]*/
+/* [ Created with wxMaxima version 18.02.0 ] */
+/* [wxMaxima: input   start ] */
+batchload("geometry.wxm")$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: comment start ]
+Define a sphere from a point and a radius
+   [wxMaxima: comment end   ] */
+
+
+/* [wxMaxima: input   start ] */
+p:vec3(p_x,p_y,p_z)$
+assume(r > 0)$
+sphere(v):=r=len(v-p)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: comment start ]
+Define a line that passes through the origin
+   [wxMaxima: comment end   ] */
+
+
+/* [wxMaxima: input   start ] */
+line(t):=vec3(v_x,v_y,v_z)*t$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: comment start ]
+Compute the intesection of the sphere and the ray
+   [wxMaxima: comment end   ] */
+
+
+/* [wxMaxima: input   start ] */
+solve(sphere(line(t)), t);
+/* [wxMaxima: input   end   ] */
+/* [wxMaxima: answer  start ] */
+positive;
+/* [wxMaxima: answer  end   ] */
+
+
+/* [wxMaxima: input   start ] */
+optimize(%);
+/* [wxMaxima: input   end   ] */
+
+
+
+/* Old versions of Maxima abort on loading files that end in a comment. */
+"Created with wxMaxima 18.02.0"$

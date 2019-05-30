@@ -87,7 +87,7 @@ void main() {
 		// pick which end to use based on the cylinder parameter
 		uint iEnd = tCylinder <= 0.5 ? 0 : 1;
 
-		outColor = light(inColor[iEnd], normal);
+		outColor = light(inColor[iEnd], posPixelCamera, normal);
 		outIndex = ivec2(inIndex[iEnd], inViewIndex);
 		gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
@@ -125,7 +125,7 @@ void main() {
 			// yup, found an endcap
 			posPixelCamera.z = zEndcap[iEndcap];
 
-			outColor = light(inColor[iEndcap], normalEndcap[iEndcap]);
+			outColor = light(inColor[iEndcap], posPixelCamera, normalEndcap[iEndcap]);
 			outIndex = ivec2(inIndex[iEndcap], inViewIndex);
 			gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
