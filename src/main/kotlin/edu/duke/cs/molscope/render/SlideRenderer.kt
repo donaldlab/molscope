@@ -424,31 +424,13 @@ internal class SlideRenderer(
 	private val sphereRenderer = SphereRenderer(this).autoClose()
 	private val cylinderRenderer = CylinderRenderer(this).autoClose()
 
-	// TODO: don't re-create the field when we re-create the slide renderer on resizes
-	private val ambientOcclusion = AmbientOcclusion(this).autoClose()
-	private var renderAmbientOcclusion = true // TODO: tie this into the shader
+	private val occlusionRenderer = OcclusionRenderer(this).autoClose()
 	private var renderAmbientOcclusionSamples = false
 
-	fun render(slide: Slide.Locked, renderFinished: Semaphore? = null) {
+	fun render(slide: Slide.Locked, renderables: ViewRenderables, occlusionField: OcclusionField, renderFinished: Semaphore? = null) {
 
-		// update the renderers with views
-		// sadly we can't use an interface to collect SphereRenderable instances from views,
-		// because these rendering details are internal, and the views are public API
-		// alas, kotlin doesn't allow mixing internal interfaces into public classes
-		// so, this is going to get a bit messy...
-		val sphereRenderables = slide.views.mapNotNull { when (it) {
-			is SpaceFilling -> it.sphereRenderable
-			is BallAndStick -> it.sphereRenderable
-			else -> null
-		}}
-		val cylinderRenderables = slide.views.mapNotNull { when (it) {
-			is BallAndStick -> it.cylinderRenderable
-			else -> null
-		}}
-
-		ambientOcclusion.update(sphereRenderables)
-		sphereRenderer.update(sphereRenderables)
-		cylinderRenderer.update(cylinderRenderables)
+		sphereRenderer.update(renderables.spheres)
+		cylinderRenderer.update(renderables.cylinders)
 
 		// update the camera
 		while (slide.camera.queue.isNotEmpty()) {
@@ -511,7 +493,7 @@ internal class SlideRenderer(
 				)
 			)
 
-			ambientOcclusion.barriers(this)
+			occlusionRenderer.barriers(this, occlusionField)
 
 			// draw all the views
 			beginRenderPass(
@@ -536,7 +518,7 @@ internal class SlideRenderer(
 				}
 			}
 			if (renderAmbientOcclusionSamples) {
-				ambientOcclusion.render(this)
+				occlusionRenderer.render(this, occlusionField)
 			}
 			endRenderPass()
 
@@ -636,3 +618,9 @@ internal class SlideRenderer(
 }
 
 data class CursorIndex(val viewIndex: Int, val index: Int)
+
+
+internal data class ViewRenderables(
+	val spheres: List<SphereRenderable>,
+	val cylinders: List<CylinderRenderable>
+)

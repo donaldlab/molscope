@@ -2,16 +2,23 @@ package edu.duke.cs.molscope.gui
 
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
-import cuchaz.kludge.tools.AutoCloser
-import cuchaz.kludge.tools.toFloat
-import cuchaz.kludge.tools.x
-import cuchaz.kludge.tools.y
+import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
+import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.molecule.Atom
+import edu.duke.cs.molscope.render.*
+import edu.duke.cs.molscope.render.OcclusionCalculator
+import edu.duke.cs.molscope.render.OcclusionField
 import edu.duke.cs.molscope.render.SlideRenderer
+import edu.duke.cs.molscope.render.SphereRenderable
+import edu.duke.cs.molscope.render.ViewRenderables
+import edu.duke.cs.molscope.tools.IdentityChangeTracker
+import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.ColorsMode
+import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector2f
+import kotlin.NoSuchElementException
 import kotlin.math.abs
 import kotlin.math.atan2
 
@@ -25,16 +32,20 @@ internal class SlideWindow(
 	private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = also { closer.add(this@autoClose, replace) }
 	override fun close() = closer.close()
 
-	private class RendererInfo(
+	private inner class RendererInfo(
 		val renderer: SlideRenderer,
 		var imageDesc: Imgui.ImageDescriptor
 	) {
 
 		var cameraRotator = renderer.camera.Rotator()
+
+		init {
+			// if we already have an occlusion field, update the renderer right away
+			occlusionField?.updateDescriptorSet(renderer)
+		}
 	}
 
 	private var rendererInfo: RendererInfo? = null
-
 	private val rendererInfoOrThrow: RendererInfo get() = rendererInfo ?: throw NoSuchElementException("no renderer yet, this is a bug")
 
 	val renderFinished = queue.device.semaphore().autoClose()
@@ -84,14 +95,59 @@ internal class SlideWindow(
 	// TODO: allow configurable hover/selection mode?
 	var showHovers: Boolean = true
 
+	private val renderablesTracker = RenderablesTracker()
+	private val occlusionCalculator = OcclusionCalculator(queue).autoClose()
+	private var occlusionField: OcclusionField? = null
+
 	fun render(slide: Slide.Locked, renderFinished: Semaphore): Boolean {
+
 		val rendererInfo = rendererInfo ?: return false
-		rendererInfo.renderer.apply {
+
+		rendererInfo.apply {
 
 			// update the background color based on settings
-			backgroundColor = backgroundColors[ColorsMode.current]!!
-			
-			render(slide, renderFinished)
+			renderer.backgroundColor = backgroundColors[ColorsMode.current]!!
+
+			// gather all the renderables by type
+			// sadly we can't use an interface to collect SphereRenderable instances from views,
+			// because these rendering details are internal, and the views are public API
+			// alas, kotlin doesn't allow mixing internal interfaces into public classes
+			// so, this is going to get a bit messy...
+			val renderables = ViewRenderables(
+				spheres = slide.views.mapNotNull { when (it) {
+					is SpaceFilling -> it.sphereRenderable
+					is BallAndStick -> it.sphereRenderable
+					else -> null
+				}},
+				cylinders = slide.views.mapNotNull { when (it) {
+					is BallAndStick -> it.cylinderRenderable
+					else -> null
+				}}
+			)
+
+			// did any renderables change?
+			renderablesTracker.update(renderables)
+			if (renderablesTracker.changed) {
+
+				// update the occlusion field
+				occlusionField = occlusionCalculator
+					.calc(
+						// TODO: make configurable?
+						extent = Extent3D(32, 32, 32),
+						gridSubdivisions = 2,
+						renderables = renderables
+					)
+					.autoClose(replace = occlusionField)
+					.apply {
+						updateDescriptorSet(renderer)
+					}
+			}
+
+			// get the occlusion field
+			// if we don't have one, we must not have any geometry either, so skip the render
+			val occlusionField = occlusionField ?: return false
+
+			renderer.render(slide, renderables, occlusionField, renderFinished)
 		}
 		return true
 	}
@@ -343,5 +399,23 @@ private sealed class ContextMenu {
 		override fun render(renderer: SlideRenderer, imgui: Commands) = imgui.run {
 			text(msg)
 		}
+	}
+}
+
+
+internal class RenderablesTracker {
+
+	private val spheres = IdentityChangeTracker<SphereRenderable>()
+	private val cylinders = IdentityChangeTracker<CylinderRenderable>()
+
+	var changed: Boolean = false
+		private set
+
+	fun update(renderables: ViewRenderables) {
+
+		spheres.update(renderables.spheres)
+		cylinders.update(renderables.cylinders)
+
+		changed = spheres.changed || cylinders.changed
 	}
 }

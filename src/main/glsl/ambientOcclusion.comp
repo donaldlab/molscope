@@ -9,21 +9,21 @@ layout(push_constant, std140) uniform readonly restrict Bounds {
 	float pad1;
 } inBounds;
 
-// define the spherical input atoms
-// TODO: add cylinder occluders?
+// define the input geometry
+// TODO: add cylinder occluders
 
-struct Atom {
+struct Sphere {
 	vec3 pos;
 	float radius;
 };
 
-layout(binding = 0, std140) buffer readonly restrict Atoms {
+layout(binding = 0, std140) buffer readonly restrict Spheres {
 	uint size;
 	uint pad0; // 12 bytes padding so buf is aligned to 16 bytes
 	uint pad1; // NOTE: don't do uint pad[3] here, that apparently screws up the alignment
 	uint pad2;
-	Atom buf[];
-} inAtoms;
+	Sphere buf[];
+} inSpheres;
 
 layout(binding = 1, std140) buffer readonly restrict Lines {
 	uint size;
@@ -89,7 +89,7 @@ bool[2] getHit(float[2] t) {
 
 
 // shoot rays in all directions from each sample point
-// what percentage of rays are obscured by atom spheres?
+// what percentage of rays are obscured by geometry?
 // bin rays by cardinal direction
 
 void main() {
@@ -105,14 +105,15 @@ void main() {
 	bool castingNeg = true;
 	bool castingPos = true;
 
-	for (uint ia=0; ia<inAtoms.size; ia++) {
-		Atom atom = inAtoms.buf[ia];
+	// check all the spheres
+	for (uint ia=0; ia<inSpheres.size; ia++) {
+		Sphere sphere = inSpheres.buf[ia];
 
-		// transform the atom into a coord system relative to the ray source
-		vec3 pos = atom.pos - p;
+		// transform the sphere into a coord system relative to the ray source
+		sphere.pos -= p;
 
-		// intersect the atom sphere and line
-		bool[2] hit = getHit(intersect(pos, atom.radius, inLines.buf[iLine].xyz));
+		// intersect the sphere and line
+		bool[2] hit = getHit(intersect(sphere.pos, sphere.radius, inLines.buf[iLine].xyz));
 
 		// update rays based on side hits
 		if (hit[SIDE_NEG] && castingNeg) {
