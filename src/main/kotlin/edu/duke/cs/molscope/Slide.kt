@@ -2,6 +2,9 @@ package edu.duke.cs.molscope
 
 import cuchaz.kludge.tools.expand
 import cuchaz.kludge.tools.toFloat
+import edu.duke.cs.molscope.gui.SlideFeature
+import edu.duke.cs.molscope.gui.features.Features
+import edu.duke.cs.molscope.gui.features.slide.ViewRenderSettings
 import edu.duke.cs.molscope.view.RenderView
 import org.joml.AABBd
 import org.joml.AABBf
@@ -14,7 +17,10 @@ import kotlin.collections.ArrayList
  *
  * slides must be thread-safe since they are directly accessed by the renderer
  */
-class Slide(name: String) {
+class Slide(
+	name: String,
+	val includeDefaultFeatures: Boolean = true
+) {
 
 	var name: String = name
 		private set
@@ -55,6 +61,12 @@ class Slide(name: String) {
 		}
 
 		val camera = Camera()
+
+		val features = Features<SlideFeature>().apply {
+			if (includeDefaultFeatures) {
+				add(ViewRenderSettings())
+			}
+		}
 	}
 
 	/**

@@ -32,6 +32,12 @@ internal class SlideRenderer(
 	var cursorIndex: CursorIndex? = null
 		private set
 
+	// get the old settings (and mark them dirty) or make new settings
+	val settings: RenderSettings = oldRenderer
+		?.settings
+		?.apply { dirty = true }
+		?: RenderSettings()
+
 	// make the main render pass
 	val colorAttachment =
 		Attachment(
@@ -196,7 +202,7 @@ internal class SlideRenderer(
 	val descriptorPool = device.descriptorPool(
 		maxSets = 3,
 		sizes = DescriptorType.Counts(
-			DescriptorType.UniformBuffer to 2,
+			DescriptorType.UniformBuffer to 3,
 			DescriptorType.StorageBuffer to 2,
 			DescriptorType.StorageImage to 3,
 			DescriptorType.CombinedImageSampler to 1
@@ -219,8 +225,13 @@ internal class SlideRenderer(
 		type = DescriptorType.UniformBuffer,
 		stages = IntFlags.of(ShaderStage.Vertex, ShaderStage.Fragment)
 	)
+	val settingsBinding = DescriptorSetLayout.Binding(
+		binding = 3,
+		type = DescriptorType.UniformBuffer,
+		stages = IntFlags.of(ShaderStage.Fragment)
+	)
 	val mainDescriptorSetLayout = device.descriptorSetLayout(listOf(
-		viewBufBinding, occlusionImageBinding, boundsBinding
+		viewBufBinding, occlusionImageBinding, boundsBinding, settingsBinding
 	)).autoClose()
 	val mainDescriptorSet = descriptorPool.allocate(mainDescriptorSetLayout)
 
@@ -261,6 +272,16 @@ internal class SlideRenderer(
 		.autoClose()
 	val commandBuffer = commandPool.buffer()
 
+	// allocate the settings buffer
+	val settingsBuf = device
+		.buffer(
+			size = Float.SIZE_BYTES*2L,
+			usage = IntFlags.of(Buffer.Usage.UniformBuffer, Buffer.Usage.TransferDst)
+		)
+		.autoClose()
+		.allocateDevice()
+		.autoClose()
+
 	// allocate the cursor buffer on the device
 	val cursorBufDevice = device
 		.buffer(
@@ -288,7 +309,10 @@ internal class SlideRenderer(
 				mainDescriptorSet.address(viewBufBinding).write(
 					DescriptorSet.BufferInfo(camera.buf.buffer)
 				),
-				// AmbientOcclusion updates the rest of the main bindings
+				// AmbientOcclusion updates some of the main bindings
+				mainDescriptorSet.address(settingsBinding).write(
+					DescriptorSet.BufferInfo(settingsBuf.buffer)
+				),
 				cursorDescriptorSet.address(cursorBufBinding).write(
 					DescriptorSet.BufferInfo(cursorBufDevice.buffer)
 				),
@@ -463,6 +487,16 @@ internal class SlideRenderer(
 			buf.flip()
 		}
 
+		// update the settings buffer if needed
+		if (settings.dirty) {
+			settingsBuf.transferHtoD { buf ->
+				buf.putFloat(settings.lightingWeight)
+				buf.putFloat(settings.ambientOcclusionWeight)
+				buf.flip()
+			}
+			settings.dirty = false
+		}
+
 		// record the command buffer
 		commandBuffer.apply {
 			begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
@@ -624,3 +658,21 @@ internal data class ViewRenderables(
 	val spheres: List<SphereRenderable>,
 	val cylinders: List<CylinderRenderable>
 )
+
+
+class RenderSettings {
+
+	var lightingWeight: Float = 1f
+		set(value) {
+			dirty = dirty || value != field
+			field = value
+		}
+
+	var ambientOcclusionWeight: Float = 1f
+		set(value) {
+			dirty = dirty || value != field
+			field = value
+		}
+
+	var dirty = true
+}

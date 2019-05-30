@@ -177,6 +177,10 @@ internal class SlideWindow(
 		)
 	}
 
+	private val commands = object : SlideCommands {
+		override val renderSettings get() = rendererInfoOrThrow.renderer.settings
+	}
+
 	fun gui(imgui: Commands) = imgui.run {
 
 		// start the window
@@ -184,9 +188,40 @@ internal class SlideWindow(
 			320f, 240f,
 			Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY
 		)
-		if (!begin(slide.name)) {
+		if (!begin(slide.name, flags = IntFlags.of(Commands.BeginFlags.MenuBar))) {
 			end()
 			return
+		}
+
+		// render the slide features
+		slide.lock { slide ->
+			if (beginMenuBar()) {
+
+				if (rendererInfo != null) {
+
+					// render feature menus
+					for ((menu, features) in slide.features.features) {
+						if (beginMenu(menu.capitalize())) {
+							for (feature in features.values) {
+								feature.menu(this, slide, commands)
+							}
+							endMenu()
+						}
+					}
+				}
+
+				endMenuBar()
+			}
+
+			if (rendererInfo != null) {
+
+				// render feature guis
+				for (features in slide.features.features.values) {
+					for (feature in features.values) {
+						feature.gui(this, slide, commands)
+					}
+				}
+			}
 		}
 
 		// track the window content area

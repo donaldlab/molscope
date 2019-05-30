@@ -1,11 +1,14 @@
 package edu.duke.cs.molscope.gui
 
 import cuchaz.kludge.imgui.Commands
+import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.HasFeatureId
+import edu.duke.cs.molscope.render.RenderSettings
+import edu.duke.cs.molscope.render.SlideRenderer
 
 
-abstract class WindowFeature(
+abstract class SlideFeature(
 	val menu: String,
 	val name: String
 ) : HasFeatureId {
@@ -18,7 +21,7 @@ abstract class WindowFeature(
 	 * Called from the window thread, not the creating thread,
 	 * so be careful about synchronization of shared memory.
 	 */
-	open fun menu(imgui: Commands, win: WindowCommands) {
+	open fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) {
 		// do nothing by default
 	}
 
@@ -28,16 +31,11 @@ abstract class WindowFeature(
 	 * Called from the window thread, not the creating thread,
 	 * so be careful about synchronization of shared memory.
 	 */
-	open fun gui(imgui: Commands, win: WindowCommands) {
+	open fun gui(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) {
 		// do nothing by default
 	}
 }
 
-/**
- * Interface to talk to the window that is hosting this feature.
- *
- * Should only access this from the window thread.
- */
-interface WindowCommands {
-	var shouldClose: Boolean
+interface SlideCommands {
+	val renderSettings: RenderSettings
 }

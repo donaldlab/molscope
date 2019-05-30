@@ -18,6 +18,11 @@ layout(binding = 2, std140) uniform readonly restrict OcclusionField {
 	float pad3;
 } inOcclusionField;
 
+layout(binding = 3, std140) uniform readonly restrict Settings {
+	float lightingWeight;
+	float ambientOcclusionWeight;
+} inSettings;
+
 
 const vec3 toLight = normalize(vec3(1, 1, -1));
 
@@ -58,18 +63,14 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 
 	vec3 rgb = vec3(1, 1, 1);
 
-	// TODO: NEXTTIME: make a render settings buffer for the weight
-	const float lightingWeight = 1;
-	const float ambientOcclusionWeight = 1;
-
 	// apply lighting if neeed
-	if (lightingWeight > 0) {
-		rgb *= lightingWeight*pbrLambert(color.rgb, normalCamera);
+	if (inSettings.lightingWeight > 0) {
+		rgb = mix(rgb, pbrLambert(color.rgb, normalCamera), inSettings.lightingWeight);
 	}
 
 	// apply ambient occlusion if needed
-	if (ambientOcclusionWeight > 0) {
-		rgb *= 1 - ambientOcclusionWeight*sampleOcclusion(worldToOcclusionField(cameraToWorld(posCamera)));
+	if (inSettings.ambientOcclusionWeight > 0) {
+		rgb *= 1 - inSettings.ambientOcclusionWeight*sampleOcclusion(worldToOcclusionField(cameraToWorld(posCamera)));
 	}
 	
 	return vec4(rgb, color.a);

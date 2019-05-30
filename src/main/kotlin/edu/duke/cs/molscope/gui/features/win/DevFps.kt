@@ -16,7 +16,7 @@ class DevFps : WindowFeature(menu, name) {
 		val id = FeatureId(menu, name)
 	}
 
-	var pOpen = Ref.of(false)
+	val pOpen = Ref.of(false)
 
 	override fun menu(imgui: Commands, win: WindowCommands) = imgui.run {
 		if (menuItem(name)) {

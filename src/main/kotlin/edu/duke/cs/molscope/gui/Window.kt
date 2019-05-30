@@ -12,6 +12,7 @@ import cuchaz.kludge.window.Windows
 import edu.duke.cs.molscope.Molscope
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.features.FeatureId
+import edu.duke.cs.molscope.gui.features.Features
 import edu.duke.cs.molscope.gui.features.win.*
 import edu.duke.cs.molscope.render.VulkanDevice
 import edu.duke.cs.molscope.render.WindowRenderer
@@ -213,32 +214,7 @@ internal class WindowThread(
 		return true
 	}
 
-	inner class Features {
-
-		val features = LinkedHashMap<String,LinkedHashMap<String,WindowFeature>>()
-
-		fun contains(id: FeatureId) =
-			(features[id.menu]?.get(id.name)) != null
-
-		fun add(feature: WindowFeature) {
-
-			// check for duplicates
-			if (contains(feature.id)) {
-				throw IllegalArgumentException("feature already exists in this window: $feature")
-			}
-
-			// add the feature
-			features
-				.computeIfAbsent(feature.id.menu) { LinkedHashMap() }
-				.put(feature.id.name, feature)
-		}
-
-		fun remove(id: FeatureId): Boolean {
-			val features = features[id.menu] ?: return false
-			return features.remove(id.name) != null
-		}
-	}
-	val features = Features().apply {
+	val features = Features<WindowFeature>().apply {
 
 		// init with built-in features if desired
 		if (includeDefaultFeatures) {
@@ -302,7 +278,7 @@ internal class WindowThread(
 						}
 
 						// render window feature guis
-						for ((menu, features) in features.features) {
+						for (features in features.features.values) {
 							for (feature in features.values) {
 								feature.gui(this, winCommands)
 							}

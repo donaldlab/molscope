@@ -17,3 +17,7 @@ class FeatureId(menu: String, name: String) {
 			&& this.menu == other.menu
 			&& this.name == other.name
 }
+
+interface HasFeatureId {
+	val id: FeatureId
+}

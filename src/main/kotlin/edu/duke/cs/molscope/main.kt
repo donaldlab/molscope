@@ -152,9 +152,6 @@ fun main() = autoCloser {
 		}
 	})
 
-	// remove a feature
-	win.features.remove(DevFps.id)
-
 	// prepare a slide for the molecule
 	win.slides.add(Slide(mol.name).apply {
 		lock { s ->
