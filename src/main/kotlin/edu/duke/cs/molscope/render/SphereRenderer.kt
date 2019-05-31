@@ -6,6 +6,7 @@ import cuchaz.kludge.tools.SIZE_BYTES
 import cuchaz.kludge.tools.diff
 import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.view.ColorsMode
+import org.joml.AABBf
 import java.nio.ByteBuffer
 import java.nio.file.Paths
 import java.util.*
@@ -145,5 +146,6 @@ internal class SphereRenderer(
 internal interface SphereRenderable {
 	val numVertices: Int
 	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)
+	val boundingBox: AABBf
 	fun fillOcclusionBuffer(buf: ByteBuffer)
 }

@@ -20,6 +20,7 @@ layout(binding = 2, std140) uniform readonly restrict OcclusionField {
 
 layout(binding = 3, std140) uniform readonly restrict Settings {
 	float lightingWeight;
+	float depthWeight;
 	float ambientOcclusionWeight;
 } inSettings;
 
@@ -66,6 +67,12 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 	// apply lighting if neeed
 	if (inSettings.lightingWeight > 0) {
 		rgb = mix(rgb, pbrLambert(color.rgb, normalCamera), inSettings.lightingWeight);
+	}
+
+	// make far away things more grey
+	if (inSettings.depthWeight > 0) {
+		float depth = cameraToNDC(posCamera).z;
+		rgb = mix(rgb, vec3(0.5, 0.5, 0.5), inSettings.depthWeight*depth);
 	}
 
 	// apply ambient occlusion if needed

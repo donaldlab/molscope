@@ -133,7 +133,7 @@ internal class SlideWindow(
 				occlusionField = occlusionCalculator
 					.calc(
 						// TODO: make configurable?
-						extent = Extent3D(32, 32, 32),
+						extent = Extent3D(16, 16, 16),
 						gridSubdivisions = 2,
 						renderables = renderables
 					)
@@ -312,7 +312,7 @@ internal class SlideWindow(
 		// pick the drag mode based on the click pos
 		// if we're near the center, rotate about xy
 		// otherwise, rotate about z
-		val cutoff = 0.6
+		val cutoff = 0.8
 		dragMode = if (dx < cutoff && dy < cutoff) {
 			DragMode.RotateXY
 		} else {

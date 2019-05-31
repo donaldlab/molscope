@@ -78,9 +78,9 @@ void main() {
 			// convert the occlusion to a color
 			vec3 color;
 			if (occlusion >= 0.5) {
-				color = mix(vec3(1, 1, 0), vec3(1, 0, 0), (occlusion - 0.5)*2);
+				color = mix(vec3(1, 0, 0), vec3(0, 0, 0), (occlusion - 0.5)*2);
 			} else {
-				color = mix(vec3(1, 1, 1), vec3(1, 1, 0), occlusion*2);
+				color = mix(vec3(1, 1, 1), vec3(1, 0, 0), occlusion*2);
 			}
 
 			// output the pixel

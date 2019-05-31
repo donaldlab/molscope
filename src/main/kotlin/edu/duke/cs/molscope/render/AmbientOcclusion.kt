@@ -6,7 +6,6 @@ import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.tools.SphereGrid
 import edu.duke.cs.molscope.tools.time
 import org.joml.AABBf
-import org.joml.Vector3f
 import java.nio.file.Paths
 import java.util.*
 import kotlin.math.abs
@@ -40,17 +39,17 @@ internal class OcclusionCalculator(
 	).autoClose()
 
 	// make the compute pipeline
-	private val spheresBinding = DescriptorSetLayout.Binding(
+	private val linesBinding = DescriptorSetLayout.Binding(
 		binding = 0,
 		type = DescriptorType.StorageBuffer,
 		stages = IntFlags.of(ShaderStage.Compute)
 	)
-	private val linesBinding = DescriptorSetLayout.Binding(
+	private val spheresBinding = DescriptorSetLayout.Binding(
 		binding = 1,
 		type = DescriptorType.StorageBuffer,
 		stages = IntFlags.of(ShaderStage.Compute)
 	)
-	private val samplesBinding = DescriptorSetLayout.Binding(
+	private val cylindersBinding = DescriptorSetLayout.Binding(
 		binding = 2,
 		type = DescriptorType.StorageBuffer,
 		stages = IntFlags.of(ShaderStage.Compute)
@@ -61,7 +60,7 @@ internal class OcclusionCalculator(
 		stages = IntFlags.of(ShaderStage.Compute)
 	)
 	private val descriptorSetLayout = device.descriptorSetLayout(listOf(
-		spheresBinding, linesBinding, samplesBinding, occlusionBinding
+		linesBinding, spheresBinding, cylindersBinding, occlusionBinding
 	)).autoClose()
 	private val descriptorSet = descriptorPool.allocate(descriptorSetLayout)
 	private val pipeline = device
@@ -146,8 +145,8 @@ internal class OcclusionCalculator(
 		linesBuf.transferHtoD { buf ->
 
 			// write the header
+			buf.putInts(field.extent.width, field.extent.height, field.extent.depth)
 			buf.putInt(sphereGrid.size)
-			buf.putInts(0, 0, 0) // padding
 
 			// write the lines
 			for (v in sphereGrid) {
@@ -156,14 +155,20 @@ internal class OcclusionCalculator(
 			}
 		}
 
-		val box = AABBf()
-		val samples = HashSet<Offset3D>()
+		// compute the bounding box for the occlusion field
+		val box = (
+			renderables.spheres.map { it.boundingBox }
+			+ renderables.cylinders.map { it.boundingBox }
+		).reduce { a, b -> AABBf(a).union(b) }
+
+		// pad the box a little to give us some breathing room
+		box.expand(0.1f)
 
 		// upload the spheres
 		val numSpheres = renderables.spheres.sumBy { it.numVertices }
 		val spheresBuf = device
 			.buffer(
-				size = 16L + numSpheres*16L, // sizeof(struct Atom)
+				size = 16L + numSpheres*16L, // sizeof(struct Sphere)
 				usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferDst)
 			)
 			.autoClose()
@@ -177,107 +182,25 @@ internal class OcclusionCalculator(
 			// fill the buffer
 			renderables.spheres.forEach { it.fillOcclusionBuffer(buf) }
 			buf.flip()
-
-			// calculate the AABB for the occlusion field
-			buf.position = 16
-			if (buf.hasRemaining()) {
-				val x = buf.float
-				val y = buf.float
-				val z = buf.float
-				val r = buf.float
-				box.setMin(x - r, y - r, z - r)
-				box.setMax(x + r, y + r, z + r)
-			}
-			while (buf.hasRemaining()) {
-				val x = buf.float
-				val y = buf.float
-				val z = buf.float
-				val r = buf.float
-				box.expandToInclude(x - r, y - r, z - r)
-				box.expandToInclude(x + r, y + r, z + r)
-			}
-			buf.rewind()
-
-			// pad the box a little to give us some breathing room
-			box.expand(0.1f)
-
-			val gridPad = listOf(
-				(box.maxX - box.minX)/field.extent.width,
-				(box.maxY - box.minY)/field.extent.height,
-				(box.maxZ - box.minZ)/field.extent.depth
-			).max()!!
-
-			fun Offset3D.isNearSurface(): Boolean {
-
-				val samplePos = Vector3f(
-					x.toFloat()*(box.maxX - box.minX)/(field.extent.width - 1) + box.minX,
-					y.toFloat()*(box.maxY - box.minY)/(field.extent.height - 1) + box.minY,
-					z.toFloat()*(box.maxZ - box.minZ)/(field.extent.depth - 1) + box.minZ
-				)
-
-				buf.position = 16
-				while (buf.hasRemaining()) {
-					val pos = Vector3f(buf.float, buf.float, buf.float)
-					val r = buf.float
-
-					// pad the radius by one grid spacing
-					val rlo = r - gridPad
-					val rhi = r + gridPad
-
-					if (samplePos.distanceSquared(pos) in rlo*rlo .. rhi*rhi) {
-
-						// found one!
-						return true
-					}
-				}
-
-				return false
-			}
-
-			// grab all the field grid points near surfaces
-			for (z in 0 until field.extent.depth) {
-				for (y in 0 until field.extent.height) {
-					for (x in 0 until field.extent.width) {
-
-						val sample = Offset3D(x, y, z)
-
-						// is this sample near a surface?
-						if (sample.isNearSurface()) {
-
-							// accept the sample and its neighbors
-							sample.neighbors(field.extent, includeCenter = true).forEach { samples.add(it) }
-						}
-					}
-				}
-			}
-
-			buf.rewind()
 		}
 
-		// upload the samples
-		val samplesBuf = device
+		// upload the cylinders
+		val numCylinders = renderables.cylinders.sumBy { it.numIndices/2 }
+		val cylindersBuf = device
 			.buffer(
-				size = 16L + samples.size*16L, // sizeof(uvec4)
+				size = 16L + numCylinders*32L, // sizeof(struct Cylinder)
 				usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferDst)
 			)
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
-		samplesBuf.transferHtoD { buf ->
-			buf.putInts(
-				field.extent.width,
-				field.extent.height,
-				field.extent.depth,
-				0 // padding
-			)
-			for (sample in samples) {
-				buf.putInts(
-					sample.x,
-					sample.y,
-					sample.z,
-					0 // padding
-				)
-			}
+		cylindersBuf.transferHtoD { buf ->
+
+			buf.putInt(numCylinders)
+			buf.putInts(0, 0, 0) // padding
+
+			// fill the buffer
+			renderables.cylinders.forEach { it.fillOcclusionBuffer(buf) }
 			buf.flip()
 		}
 
@@ -297,14 +220,14 @@ internal class OcclusionCalculator(
 		// update the descriptor sets
 		device.updateDescriptorSets(
 			writes = listOf(
-				descriptorSet.address(spheresBinding).write(
-					DescriptorSet.BufferInfo(spheresBuf.buffer)
-				),
 				descriptorSet.address(linesBinding).write(
 					DescriptorSet.BufferInfo(linesBuf.buffer)
 				),
-				descriptorSet.address(samplesBinding).write(
-					DescriptorSet.BufferInfo(samplesBuf.buffer)
+				descriptorSet.address(spheresBinding).write(
+					DescriptorSet.BufferInfo(spheresBuf.buffer)
+				),
+				descriptorSet.address(cylindersBinding).write(
+					DescriptorSet.BufferInfo(cylindersBuf.buffer)
 				),
 				descriptorSet.address(occlusionBinding).write(
 					DescriptorSet.ImageInfo(null, occlusionView, Image.Layout.General)
@@ -322,7 +245,7 @@ internal class OcclusionCalculator(
 		// TEMP
 		time("occlusion") {
 
-			// call the compute shader
+			// call the compute shaders
 			queue.submit(
 				commandBuffer.apply {
 					begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
@@ -358,7 +281,12 @@ internal class OcclusionCalculator(
 							putFloat(0f) // padding
 							flip()
 						})
-						dispatch(samples.size, sphereGrid.size)
+						dispatch(
+							field.extent.width,
+							field.extent.height,
+							field.extent.depth*sphereGrid.size
+							// no 4d kernels in Vulkan, so multiplex the z and line params to keep it 3d
+						)
 
 						// run the blur kernel
 						bindPipeline(blurPipeline)

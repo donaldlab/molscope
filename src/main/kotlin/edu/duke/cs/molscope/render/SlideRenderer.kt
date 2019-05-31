@@ -275,7 +275,7 @@ internal class SlideRenderer(
 	// allocate the settings buffer
 	val settingsBuf = device
 		.buffer(
-			size = Float.SIZE_BYTES*2L,
+			size = Float.SIZE_BYTES*3L,
 			usage = IntFlags.of(Buffer.Usage.UniformBuffer, Buffer.Usage.TransferDst)
 		)
 		.autoClose()
@@ -449,7 +449,6 @@ internal class SlideRenderer(
 	private val cylinderRenderer = CylinderRenderer(this).autoClose()
 
 	private val occlusionRenderer = OcclusionRenderer(this).autoClose()
-	private var renderAmbientOcclusionSamples = false
 
 	fun render(slide: Slide.Locked, renderables: ViewRenderables, occlusionField: OcclusionField, renderFinished: Semaphore? = null) {
 
@@ -491,6 +490,7 @@ internal class SlideRenderer(
 		if (settings.dirty) {
 			settingsBuf.transferHtoD { buf ->
 				buf.putFloat(settings.lightingWeight)
+				buf.putFloat(settings.depthWeight)
 				buf.putFloat(settings.ambientOcclusionWeight)
 				buf.flip()
 			}
@@ -551,7 +551,7 @@ internal class SlideRenderer(
 					}
 				}
 			}
-			if (renderAmbientOcclusionSamples) {
+			if (settings.showOcclusionField) {
 				occlusionRenderer.render(this, occlusionField)
 			}
 			endRenderPass()
@@ -659,10 +659,15 @@ internal data class ViewRenderables(
 	val cylinders: List<CylinderRenderable>
 )
 
-
 class RenderSettings {
 
 	var lightingWeight: Float = 1f
+		set(value) {
+			dirty = dirty || value != field
+			field = value
+		}
+
+	var depthWeight: Float = 0.2f
 		set(value) {
 			dirty = dirty || value != field
 			field = value
@@ -674,5 +679,8 @@ class RenderSettings {
 			field = value
 		}
 
-	var dirty = true
+	var showOcclusionField: Boolean = false
+
+	/** set true if we need to upload the render settings buffer */
+	internal var dirty = true
 }

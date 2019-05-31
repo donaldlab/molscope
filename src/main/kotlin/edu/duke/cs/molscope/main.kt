@@ -168,8 +168,6 @@ fun main() = autoCloser {
 		}
 	})
 
-	// TODO: choose slide menu features
-
 	win.waitForClose()
 
 } // end of scope here cleans up all autoClose() resources

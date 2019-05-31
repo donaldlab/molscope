@@ -4,6 +4,7 @@ import cuchaz.kludge.tools.expand
 import cuchaz.kludge.tools.toFloat
 import edu.duke.cs.molscope.gui.SlideFeature
 import edu.duke.cs.molscope.gui.features.Features
+import edu.duke.cs.molscope.gui.features.slide.DevOcclusionField
 import edu.duke.cs.molscope.gui.features.slide.ViewRenderSettings
 import edu.duke.cs.molscope.view.RenderView
 import org.joml.AABBd
@@ -63,8 +64,13 @@ class Slide(
 		val camera = Camera()
 
 		val features = Features<SlideFeature>().apply {
+
 			if (includeDefaultFeatures) {
 				add(ViewRenderSettings())
+			}
+
+			if (Molscope.dev) {
+				add(DevOcclusionField())
 			}
 		}
 	}

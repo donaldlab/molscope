@@ -43,6 +43,8 @@ class BallAndStick(
 			}
 		}
 
+		override val boundingBox get() = calcBoundingBox()
+
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
 			for (atom in atoms) {
@@ -83,6 +85,25 @@ class BallAndStick(
 			for (bond in mol.bonds) {
 				buf.putInt(bond.i1)
 				buf.putInt(bond.i2)
+			}
+		}
+
+		override val boundingBox get() = calcBoundingBox()
+
+		override fun fillOcclusionBuffer(buf: ByteBuffer) {
+			for (bond in mol.bonds) {
+				val atom1 = mol.atoms[bond.i1]
+				val atom2 = mol.atoms[bond.i2]
+
+				// downgrade atom pos to floats for rendering
+				buf.putFloat(atom1.pos.x().toFloat())
+				buf.putFloat(atom1.pos.y().toFloat())
+				buf.putFloat(atom1.pos.z().toFloat())
+				buf.putFloat(0f) // padding
+				buf.putFloat(atom2.pos.x().toFloat())
+				buf.putFloat(atom2.pos.y().toFloat())
+				buf.putFloat(atom2.pos.z().toFloat())
+				buf.putFloat(bondRadius)
 			}
 		}
 	}

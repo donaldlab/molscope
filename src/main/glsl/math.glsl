@@ -7,4 +7,13 @@ const float NAN = 0.0/0.0;
 const float PI = 3.141592654;
 
 
+float length2(vec3 a) {
+	return dot(a, a);
+}
+
+float distance2(vec3 a, vec3 b) {
+	return length2(a - b);
+}
+
+
 #endif // _MATH_GLSL_

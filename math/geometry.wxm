@@ -33,11 +33,18 @@ unit3yzn(y,z):=vec3(unitSphereNeg(y,z),y,z)$
 
 /* [wxMaxima: input   start ] */
 len(v):=sqrt(v . v)$
+len2(v):=v . v$
 /* [wxMaxima: input   end   ] */
 
 
 /* [wxMaxima: input   start ] */
 normalize(v):=v/len(v)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+dist(a,b):=len(a-b)$
+dist2(a,b):=len2(a-b)$
 /* [wxMaxima: input   end   ] */
 
 
