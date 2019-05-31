@@ -8,7 +8,6 @@ import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.view.ColorsMode
 import org.joml.AABBf
 import java.nio.ByteBuffer
-import java.nio.file.Paths
 import java.util.*
 
 
@@ -25,13 +24,13 @@ internal class CylinderRenderer(
 	val graphicsPipeline = slideRenderer
 		.graphicsPipeline(
 			listOf(
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/cylinder.vert.spv"))
+				slideRenderer.device.shaderModule(Shaders["cylinder.vert"])
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/cylinder.geom.spv"))
+				slideRenderer.device.shaderModule(Shaders["cylinder.geom"])
 					.autoClose()
 					.stage("main", ShaderStage.Geometry),
-				slideRenderer.device.shaderModule(Paths.get("build/shaders/cylinder.frag.spv"))
+				slideRenderer.device.shaderModule(Shaders["cylinder.frag"])
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),

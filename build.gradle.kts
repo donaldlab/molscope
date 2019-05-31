@@ -42,7 +42,8 @@ tasks {
 		group = "build"
 		doLast {
 
-			val outDir = buildDir.resolve("shaders")
+			val outDir = sourceSets["main"].resources.srcDirs.first()
+				.resolve("${project.group.toString().replace(".", "/")}/${project.name}/shaders")
 
 			val inDir = file("src/main/glsl")
 			fileTree(inDir)

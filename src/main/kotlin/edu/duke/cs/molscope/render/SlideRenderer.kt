@@ -8,7 +8,6 @@ import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector3f
-import java.nio.file.Paths
 
 
 internal class SlideRenderer(
@@ -398,7 +397,7 @@ internal class SlideRenderer(
 	// make a compute shader to download the index under the cursor
 	private val cursorPipeline = device
 		.computePipeline(
-			stage = device.shaderModule(Paths.get("build/shaders/cursorIndex.comp.spv"))
+			stage = device.shaderModule(Shaders["cursorIndex.comp"])
 				.autoClose()
 				.stage("main", ShaderStage.Compute),
 			descriptorSetLayouts = listOf(cursorDescriptorSetLayout)
@@ -408,10 +407,10 @@ internal class SlideRenderer(
 		.graphicsPipeline(
 			postRenderPass,
 			stages = listOf(
-				device.shaderModule(Paths.get("build/shaders/post.vert.spv"))
+				device.shaderModule(Shaders["post.vert"])
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				device.shaderModule(Paths.get("build/shaders/post.frag.spv"))
+				device.shaderModule(Shaders["post.frag"])
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),

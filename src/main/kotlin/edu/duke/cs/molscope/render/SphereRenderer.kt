@@ -8,7 +8,6 @@ import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.view.ColorsMode
 import org.joml.AABBf
 import java.nio.ByteBuffer
-import java.nio.file.Paths
 import java.util.*
 
 
@@ -27,13 +26,13 @@ internal class SphereRenderer(
 	val graphicsPipeline = slideRenderer
 		.graphicsPipeline(
 			listOf(
-				device.shaderModule(Paths.get("build/shaders/sphere.vert.spv"))
+				device.shaderModule(Shaders["sphere.vert"])
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				device.shaderModule(Paths.get("build/shaders/sphere.geom.spv"))
+				device.shaderModule(Shaders["sphere.geom"])
 					.autoClose()
 					.stage("main", ShaderStage.Geometry),
-				device.shaderModule(Paths.get("build/shaders/sphere.frag.spv"))
+				device.shaderModule(Shaders["sphere.frag"])
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),

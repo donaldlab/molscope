@@ -6,7 +6,6 @@ import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.tools.SphereGrid
 import edu.duke.cs.molscope.tools.time
 import org.joml.AABBf
-import java.nio.file.Paths
 import java.util.*
 import kotlin.math.abs
 import kotlin.math.max
@@ -65,7 +64,7 @@ internal class OcclusionCalculator(
 	private val descriptorSet = descriptorPool.allocate(descriptorSetLayout)
 	private val pipeline = device
 		.computePipeline(
-			stage = device.shaderModule(Paths.get("build/shaders/ambientOcclusion.comp.spv"))
+			stage = device.shaderModule(Shaders["ambientOcclusion.comp"])
 				.autoClose()
 				.stage("main", ShaderStage.Compute),
 			descriptorSetLayouts = listOf(descriptorSetLayout),
@@ -91,7 +90,7 @@ internal class OcclusionCalculator(
 	private val blurDescriptorSet = descriptorPool.allocate(blurDescriptorSetLayout)
 	private val blurPipeline = device
 		.computePipeline(
-			stage = device.shaderModule(Paths.get("build/shaders/occlusionBlur.comp.spv"))
+			stage = device.shaderModule(Shaders["occlusionBlur.comp"])
 				.autoClose()
 				.stage("main", ShaderStage.Compute),
 			descriptorSetLayouts = listOf(blurDescriptorSetLayout),
@@ -406,13 +405,13 @@ internal class OcclusionRenderer(
 	private val renderPipeline = slideRenderer
 		.graphicsPipeline(
 			listOf(
-				device.shaderModule(Paths.get("build/shaders/ambientOcclusion.vert.spv"))
+				device.shaderModule(Shaders["ambientOcclusion.vert"])
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				device.shaderModule(Paths.get("build/shaders/ambientOcclusion.geom.spv"))
+				device.shaderModule(Shaders["ambientOcclusion.geom"])
 					.autoClose()
 					.stage("main", ShaderStage.Geometry),
-				device.shaderModule(Paths.get("build/shaders/ambientOcclusion.frag.spv"))
+				device.shaderModule(Shaders["ambientOcclusion.frag"])
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),
