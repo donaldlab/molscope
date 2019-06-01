@@ -37,19 +37,7 @@ vec3 pbrLambert(vec3 albedo, vec3 normal, float intensity) {
 	float i = intensity;
 
 	// see math/lighting-lambert.wxm for derivation
-	float a1 = 1/PI;
-	float a2 = -2*PI*l.z*abs(n.z);
-	if (normal.z < 0) {
-		return (a1*a*i*(a2+2*PI*l.y*n.y+2*PI*l.x*n.x+3*PI))/6;
-	} else {
-		return -(a1*a*i*(a2-2*PI*l.y*n.y-2*PI*l.x*n.x-3*PI))/6;
-	}
-
-	/* TEMP
-	float a1 = 1/PI;
-	float a2 = -2*PI*l.z*abs(n.z);
-	return (a1*a*(a2+2*PI*l.y*n.y+2*PI*l.x*n.x+3*PI))/6;
-	*/
+	return (a*i*(2*PI*l.z*n.z+2*PI*l.y*n.y+2*PI*l.x*n.x+3*PI))/(6*PI);
 }
 
 float sampleOcclusion(vec3 posField) {

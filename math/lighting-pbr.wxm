@@ -65,17 +65,14 @@ f_l:a/π$
 
 /* [wxMaxima: comment start ]
 Calculate the out radiance function using just the Lambert BRDF
+In camera space, we only need to consider normals with z < 0
    [wxMaxima: comment end   ] */
 
 
 /* [wxMaxima: input   start ] */
 /*expr(n):=express(f_l*L_i(w_i(n,θ,φ),i)*(n . w_i(n,θ,φ)))$*/
 expr(n):=express(f_l*L_i(w_i(n,θ,φ),i)*cos(φ))$
-/* [wxMaxima: input   end   ] */
-
-
-/* [wxMaxima: input   start ] */
-integrate(integrate([expr(nn), expr(np)]*sin(φ), φ, 0, π/2), θ, 0, 2*π);
+integrate(integrate(expr(nn)*sin(φ), φ, 0, π/2), θ, 0, 2*π);
 /* [wxMaxima: input   end   ] */
 
 
