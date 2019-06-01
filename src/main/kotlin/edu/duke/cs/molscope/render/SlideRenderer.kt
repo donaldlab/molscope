@@ -8,6 +8,8 @@ import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector3f
+import java.nio.ByteBuffer
+import kotlin.reflect.KProperty
 
 
 internal class SlideRenderer(
@@ -274,7 +276,7 @@ internal class SlideRenderer(
 	// allocate the settings buffer
 	val settingsBuf = device
 		.buffer(
-			size = Float.SIZE_BYTES*3L,
+			size = RenderSettings.bufferSize,
 			usage = IntFlags.of(Buffer.Usage.UniformBuffer, Buffer.Usage.TransferDst)
 		)
 		.autoClose()
@@ -488,9 +490,7 @@ internal class SlideRenderer(
 		// update the settings buffer if needed
 		if (settings.dirty) {
 			settingsBuf.transferHtoD { buf ->
-				buf.putFloat(settings.lightingWeight)
-				buf.putFloat(settings.depthWeight)
-				buf.putFloat(settings.ambientOcclusionWeight)
+				buf.putSettings(settings)
 				buf.flip()
 			}
 			settings.dirty = false
@@ -660,26 +660,36 @@ internal data class ViewRenderables(
 
 class RenderSettings {
 
-	var lightingWeight: Float = 1f
-		set(value) {
-			dirty = dirty || value != field
-			field = value
-		}
-
-	var depthWeight: Float = 0.2f
-		set(value) {
-			dirty = dirty || value != field
-			field = value
-		}
-
-	var ambientOcclusionWeight: Float = 1f
-		set(value) {
-			dirty = dirty || value != field
-			field = value
-		}
-
-	var showOcclusionField: Boolean = false
-
 	/** set true if we need to upload the render settings buffer */
 	internal var dirty = true
+
+	private inner class Dirtyable<T>(var value: T) {
+
+		operator fun getValue(thisRef: Any?, property: KProperty<*>) = value
+
+		operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+			dirty = dirty || value != this.value
+			this.value = value
+		}
+	}
+
+	companion object {
+		val bufferSize: Long = Float.SIZE_BYTES*5L
+	}
+
+	var colorWeight: Float by Dirtyable(1f)
+	var lightWeight: Float by Dirtyable(1f)
+	var shadingWeight: Float by Dirtyable(1f)
+	var depthWeight: Float by Dirtyable(0.2f)
+	var ambientOcclusionWeight: Float by Dirtyable(1f)
+
+	var showOcclusionField: Boolean = false
+}
+
+private fun ByteBuffer.putSettings(settings: RenderSettings) {
+	putFloats(settings.colorWeight)
+	putFloat(settings.shadingWeight)
+	putFloat(settings.lightWeight)
+	putFloat(settings.depthWeight)
+	putFloat(settings.ambientOcclusionWeight)
 }

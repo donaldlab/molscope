@@ -19,7 +19,9 @@ layout(binding = 2, std140) uniform readonly restrict OcclusionField {
 } inOcclusionField;
 
 layout(binding = 3, std140) uniform readonly restrict Settings {
-	float lightingWeight;
+	float colorWeight;
+	float shadingWeight;
+	float lightWeight;
 	float depthWeight;
 	float ambientOcclusionWeight;
 } inSettings;
@@ -27,16 +29,27 @@ layout(binding = 3, std140) uniform readonly restrict Settings {
 
 const vec3 toLight = normalize(vec3(1, 1, -1));
 
-vec3 pbrLambert(vec3 albedo, vec3 normal) {
+vec3 pbrLambert(vec3 albedo, vec3 normal, float intensity) {
 
 	vec3 a = albedo;
 	vec3 n = normal;
 	vec3 l = toLight;
+	float i = intensity;
 
 	// see math/lighting-lambert.wxm for derivation
 	float a1 = 1/PI;
 	float a2 = -2*PI*l.z*abs(n.z);
+	if (normal.z < 0) {
+		return (a1*a*i*(a2+2*PI*l.y*n.y+2*PI*l.x*n.x+3*PI))/6;
+	} else {
+		return -(a1*a*i*(a2-2*PI*l.y*n.y-2*PI*l.x*n.x-3*PI))/6;
+	}
+
+	/* TEMP
+	float a1 = 1/PI;
+	float a2 = -2*PI*l.z*abs(n.z);
 	return (a1*a*(a2+2*PI*l.y*n.y+2*PI*l.x*n.x+3*PI))/6;
+	*/
 }
 
 float sampleOcclusion(vec3 posField) {
@@ -64,18 +77,23 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 
 	vec3 rgb = vec3(1, 1, 1);
 
-	// apply lighting if neeed
-	if (inSettings.lightingWeight > 0) {
-		rgb = mix(rgb, pbrLambert(color.rgb, normalCamera), inSettings.lightingWeight);
+	// apply color
+	if (inSettings.colorWeight > 0) {
+		rgb = mix(rgb, color.rgb, inSettings.colorWeight);
 	}
 
-	// make far away things more grey
+	// apply shading
+	if (inSettings.shadingWeight > 0) {
+		rgb = mix(rgb, pbrLambert(rgb, normalCamera, inSettings.lightWeight), inSettings.shadingWeight);
+	}
+
+	// apply depth fading (ie far away things are more grey)
 	if (inSettings.depthWeight > 0) {
 		float depth = cameraToNDC(posCamera).z;
 		rgb = mix(rgb, vec3(0.5, 0.5, 0.5), inSettings.depthWeight*depth);
 	}
 
-	// apply ambient occlusion if needed
+	// apply ambient occlusion
 	if (inSettings.ambientOcclusionWeight > 0) {
 		rgb *= 1 - inSettings.ambientOcclusionWeight*sampleOcclusion(worldToOcclusionField(cameraToWorld(posCamera)));
 	}

@@ -18,7 +18,9 @@ class ViewRenderSettings : SlideFeature(menu, name) {
 	}
 
 	val pOpen = Ref.of(false)
-	val pLightingWeight = Ref.of(0f)
+	val pColorWeight = Ref.of(0f)
+	val pLightWeight = Ref.of(0f)
+	val pShadingWeight = Ref.of(0f)
 	val pDepthWeight = Ref.of(0f)
 	val pAmbientOcclusionWeight = Ref.of(0f)
 
@@ -33,20 +35,28 @@ class ViewRenderSettings : SlideFeature(menu, name) {
 		if (pOpen.value) {
 
 			// update references
-			pLightingWeight.value = slidewin.renderSettings.lightingWeight
+			pColorWeight.value = slidewin.renderSettings.colorWeight
+			pShadingWeight.value = slidewin.renderSettings.shadingWeight
+			pLightWeight.value = slidewin.renderSettings.lightWeight
 			pDepthWeight.value = slidewin.renderSettings.depthWeight
 			pAmbientOcclusionWeight.value = slidewin.renderSettings.ambientOcclusionWeight
 
 			begin("$name##${slide.name}", pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
 
 			// make sliders for the render settings
-			if (sliderFloat("Lighting", pLightingWeight, 0f, 1f, "%.1f")) {
-				slidewin.renderSettings.lightingWeight = pLightingWeight.value
+			if (sliderFloat("Color", pColorWeight, 0f, 1f, "%.2f")) {
+				slidewin.renderSettings.colorWeight = pColorWeight.value
 			}
-			if (sliderFloat("Depth Fade", pDepthWeight, 0f, 1f, "%.1f")) {
+			if (sliderFloat("Shading", pShadingWeight, 0f, 1f, "%.2f")) {
+				slidewin.renderSettings.shadingWeight = pShadingWeight.value
+			}
+			if (sliderFloat("Light Intensity", pLightWeight, 0f, 2f, "%.2f")) {
+				slidewin.renderSettings.lightWeight = pLightWeight.value
+			}
+			if (sliderFloat("Depth Fade", pDepthWeight, 0f, 1f, "%.2f")) {
 				slidewin.renderSettings.depthWeight = pDepthWeight.value
 			}
-			if (sliderFloat("Ambient Occlusion", pAmbientOcclusionWeight, 0f, 1f, "%.1f")) {
+			if (sliderFloat("Ambient Occlusion", pAmbientOcclusionWeight, 0f, 2f, "%.2f")) {
 				slidewin.renderSettings.ambientOcclusionWeight = pAmbientOcclusionWeight.value
 			}
 

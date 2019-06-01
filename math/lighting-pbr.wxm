@@ -42,12 +42,13 @@ w_0:vec3(0,0,-1)$
 Define the in radiance function
 l_i (in close-to-camera hemisphere) is full radiance, antipodal is none
 interpolates linearly with angle between n and l_i
+with a weight to adujst light intensity
    [wxMaxima: comment end   ] */
 
 
 /* [wxMaxima: input   start ] */
 l_i:unit3xyn(l_x,l_y)$
-L_i(v):=((v . l_i)+1)/2$
+L_i(v,i):=i*((v . l_i)+1)/2$
 /* [wxMaxima: input   end   ] */
 
 
@@ -68,8 +69,8 @@ Calculate the out radiance function using just the Lambert BRDF
 
 
 /* [wxMaxima: input   start ] */
-/*expr(n):=express(f_l*L_i(w_i(n,θ,φ))*(n . w_i(n,θ,φ)))$*/
-expr(n):=express(f_l*L_i(w_i(n,θ,φ))*cos(φ))$
+/*expr(n):=express(f_l*L_i(w_i(n,θ,φ),i)*(n . w_i(n,θ,φ)))$*/
+expr(n):=express(f_l*L_i(w_i(n,θ,φ),i)*cos(φ))$
 /* [wxMaxima: input   end   ] */
 
 
