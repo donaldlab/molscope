@@ -15,12 +15,12 @@ import java.nio.ByteBuffer
  */
 // TODO: optimize molecule transformations so we don't have to re-create the whole view for a large molecule?
 class SpaceFilling(
-	mol: Molecule
+	molecule: Molecule
 	// TODO: molecule subset selection?
 ): RenderView {
 
-	// make a copy of the atoms
-	private val atoms = mol.atoms.copy()
+	// make a copy of the molecule
+	private val mol = molecule.copy()
 
 	internal val sphereRenderable = object : SphereRenderable {
 		
@@ -49,7 +49,7 @@ class SpaceFilling(
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
-			for (atom in atoms) {
+			for (atom in mol.atoms) {
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x.toFloat())
@@ -65,7 +65,7 @@ class SpaceFilling(
 
 	override fun calcBoundingBox() =
 		AABBf().apply {
-			atoms.forEachIndexed { i, atom ->
+			mol.atoms.forEachIndexed { i, atom ->
 
 				val x = atom.pos.x.toFloat()
 				val y = atom.pos.y.toFloat()
@@ -82,7 +82,7 @@ class SpaceFilling(
 			}
 		}
 
-	override fun getIndexed(index: Int) = atoms.getOrNull(index)
+	override fun getIndexed(index: Int) = mol.atoms.getOrNull(index)
 	// TODO: allow indexing other things?
 
 
@@ -100,6 +100,8 @@ class SpaceFilling(
 					Element.Carbon -> ElementProps(1.75f, ColorPalette.darkGrey)
 					Element.Nitrogen -> ElementProps(1.55f, ColorPalette.blue)
 					Element.Oxygen -> ElementProps(1.4f, ColorPalette.red)
+					Element.Sulfur -> ElementProps(1.8f, ColorPalette.yellow)
+					else -> ElementProps(2.0f, ColorPalette.darkGrey)
 				}
 		}
 	}

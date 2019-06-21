@@ -15,9 +15,30 @@ import java.nio.ByteBuffer
  * views a molecule using the ball and stick convention
  */
 class BallAndStick(
-	mol: Molecule
+	molecule: Molecule
 	// TODO: molecule subset selection?
 ): RenderView {
+
+	// make a copy of the molecule
+	private val mol = molecule.copy()
+
+	// collect all the bonds as a list
+	data class Bond(val i1: Int, val i2: Int)
+	private val bonds = HashSet<Bond>().apply {
+		mol.atoms.forEachIndexed { i1, a1 ->
+			for (a2 in mol.bonds.bondedAtoms(a1)) {
+				val i2 = mol.atoms.indexOf(a2)
+
+				// sort the indices to normalize the bond
+				add(if (i1 < i2) {
+					Bond(i1, i2)
+				} else {
+					Bond(i2, i1)
+				})
+			}
+		}
+	}
+
 
 	// render the atoms as spheres
 	internal val sphereRenderable = object : SphereRenderable {
@@ -47,7 +68,7 @@ class BallAndStick(
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
-			for (atom in atoms) {
+			for (atom in mol.atoms) {
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x.toFloat())
@@ -79,10 +100,10 @@ class BallAndStick(
 			}
 		}
 
-		override val numIndices = mol.bonds.size*2
+		override val numIndices = bonds.size*2
 
 		override fun fillIndexBuffer(buf: ByteBuffer) {
-			for (bond in mol.bonds) {
+			for (bond in bonds) {
 				buf.putInt(bond.i1)
 				buf.putInt(bond.i2)
 			}
@@ -91,7 +112,7 @@ class BallAndStick(
 		override val boundingBox get() = calcBoundingBox()
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
-			for (bond in mol.bonds) {
+			for (bond in bonds) {
 				val atom1 = mol.atoms[bond.i1]
 				val atom2 = mol.atoms[bond.i2]
 
@@ -113,7 +134,7 @@ class BallAndStick(
 
 			val r = atomRadius
 
-			atoms.forEachIndexed { i, atom ->
+			mol.atoms.forEachIndexed { i, atom ->
 
 				val x = atom.pos.x.toFloat()
 				val y = atom.pos.y.toFloat()
@@ -130,10 +151,7 @@ class BallAndStick(
 		}
 
 
-	// save atom for index lookups
-	private val atoms = mol.atoms.copy()
-
-	override fun getIndexed(index: Int) = atoms.getOrNull(index)
+	override fun getIndexed(index: Int) = mol.atoms.getOrNull(index)
 	// TODO: allow indexing other things?
 
 
@@ -157,6 +175,8 @@ class BallAndStick(
 					Element.Carbon -> ElementProps(ColorPalette.darkGrey)
 					Element.Nitrogen -> ElementProps(ColorPalette.blue)
 					Element.Oxygen -> ElementProps(ColorPalette.red)
+					Element.Sulfur -> ElementProps(ColorPalette.yellow)
+					else -> ElementProps(ColorPalette.darkGrey)
 				}
 		}
 	}

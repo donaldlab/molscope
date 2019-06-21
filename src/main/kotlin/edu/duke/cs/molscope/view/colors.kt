@@ -42,6 +42,12 @@ object ColorPalette {
 		light = ColorRGBA.Int(40, 40, 210)
 	)
 
+	val yellow = Color(
+		"Yellow",
+		dark = ColorRGBA.Int(200, 200, 20),
+		light = ColorRGBA.Int(210, 210, 40)
+	)
+
 	// TODO: add more colors
 
 	// TODO: refine colors after we get PBR lighting shaders

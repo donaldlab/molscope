@@ -13,11 +13,6 @@ class Polymer(
 
 	inner class Residue(
 		val id: String,
-		val atomIndices: List<Int>
-	) {
-
-		constructor(id: String, atomIndices: IntRange) : this(id, atomIndices.toList())
-
-		val atoms: Iterable<Atom> get() = atomIndices.map { this@Polymer.atoms[it] }
-	}
+		val atoms: List<Atom>
+	)
 }

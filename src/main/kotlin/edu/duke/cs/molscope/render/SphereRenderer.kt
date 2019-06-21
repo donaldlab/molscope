@@ -9,6 +9,7 @@ import edu.duke.cs.molscope.view.ColorsMode
 import org.joml.AABBf
 import java.nio.ByteBuffer
 import java.util.*
+import kotlin.math.max
 
 
 internal class SphereRenderer(
@@ -70,10 +71,13 @@ internal class SphereRenderer(
 		private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
 		override fun close() = closer.close()
 
+		// Vulkan won't allow 0-sized buffers, so use at least one byte
+		private fun bufSize(size: Long) = max(1L, size)
+
 		// allocate the vertex buffer on the GPU
 		val vertexBuf = device
 			.buffer(
-				size = src.numVertices*graphicsPipeline.vertexInput.size,
+				size = bufSize(src.numVertices*graphicsPipeline.vertexInput.size),
 				usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
 			)
 			.autoClose()
