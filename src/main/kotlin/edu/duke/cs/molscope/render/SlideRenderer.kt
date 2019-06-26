@@ -451,7 +451,7 @@ internal class SlideRenderer(
 
 	private val occlusionRenderer = OcclusionRenderer(this).autoClose()
 
-	fun render(slide: Slide.Locked, renderables: ViewRenderables, occlusionField: OcclusionField, renderFinished: Semaphore? = null) {
+	fun render(slide: Slide.Locked, renderables: ViewRenderables, occlusionField: OcclusionCalculator.Field, renderFinished: Semaphore? = null) {
 
 		sphereRenderer.update(renderables.spheres)
 		cylinderRenderer.update(renderables.cylinders)

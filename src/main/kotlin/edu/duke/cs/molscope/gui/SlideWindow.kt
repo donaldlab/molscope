@@ -9,7 +9,6 @@ import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.render.*
 import edu.duke.cs.molscope.render.OcclusionCalculator
-import edu.duke.cs.molscope.render.OcclusionField
 import edu.duke.cs.molscope.render.SlideRenderer
 import edu.duke.cs.molscope.render.SphereRenderable
 import edu.duke.cs.molscope.render.ViewRenderables
@@ -97,7 +96,7 @@ internal class SlideWindow(
 
 	private val renderablesTracker = RenderablesTracker()
 	private val occlusionCalculator = OcclusionCalculator(queue).autoClose()
-	private var occlusionField: OcclusionField? = null
+	private var occlusionField: OcclusionCalculator.Field? = null
 
 	fun render(slide: Slide.Locked, renderFinished: Semaphore): Boolean {
 
@@ -131,7 +130,7 @@ internal class SlideWindow(
 
 				// update the occlusion field
 				occlusionField = occlusionCalculator
-					.calc(
+					.Field(
 						// TODO: make configurable?
 						extent = Extent3D(16, 16, 16),
 						gridSubdivisions = 2,
@@ -146,6 +145,9 @@ internal class SlideWindow(
 			// get the occlusion field
 			// if we don't have one, we must not have any geometry either, so skip the render
 			val occlusionField = occlusionField ?: return false
+			if (occlusionField.needsProcessing()) {
+				occlusionField.process()
+			}
 
 			renderer.render(slide, renderables, occlusionField, renderFinished)
 		}

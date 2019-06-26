@@ -4,11 +4,7 @@ import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.tools.SphereGrid
-import edu.duke.cs.molscope.tools.time
 import org.joml.AABBf
-import java.util.*
-import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.min
 
 
@@ -106,11 +102,49 @@ internal class OcclusionCalculator(
 			flags = IntFlags.of(CommandPool.Create.ResetCommandBuffer)
 		)
 		.autoClose()
-	private val commandBuffer = commandPool.buffer()
 
-	fun calc(extent: Extent3D, gridSubdivisions: Int, renderables: ViewRenderables): OcclusionField = autoCloser {
+	private fun cmdbuf(block: CommandBuffer.() -> Unit) {
+		queue.submit(commandPool.buffer().apply {
+			begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
+			this.block()
+			end()
+		})
+	}
 
-		val field = OcclusionField(device, extent)
+	// make an interpolating sampler for the occlusion image
+	private val sampler = device
+		.sampler(
+			minFilter = Sampler.Filter.Linear,
+			magFilter = Sampler.Filter.Linear,
+			addressU = Sampler.Address.ClampToEdge,
+			addressV = Sampler.Address.ClampToEdge,
+			addressW = Sampler.Address.ClampToEdge
+		)
+		.autoClose()
+
+
+	inner class Field(
+		val extent: Extent3D,
+		val gridSubdivisions: Int,
+		val renderables: ViewRenderables
+	) : AutoCloseable {
+
+		private val closer = AutoCloser()
+		private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
+		override fun close() = closer.close()
+
+		// allocate an image for the final blurred occlusion data
+		val blurredOcclusionImage = device
+			.image(
+				type = Image.Type.ThreeD,
+				extent = extent,
+				format = Image.Format.R32_SINT,
+				usage = IntFlags.of(Image.Usage.Storage, Image.Usage.Sampled)
+			)
+			.autoClose()
+			.allocateDevice()
+			.autoClose()
+		val blurredOcclusionView = blurredOcclusionImage.image.view().autoClose()
 
 		// use a sphere grid to define which rays to shoot
 		val sphereGrid = SphereGrid(gridSubdivisions)
@@ -141,27 +175,32 @@ internal class OcclusionCalculator(
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
-		linesBuf.transferHtoD { buf ->
+			.apply {
+				transferHtoD { buf ->
 
-			// write the header
-			buf.putInts(field.extent.width, field.extent.height, field.extent.depth)
-			buf.putInt(sphereGrid.size)
+					// write the header
+					buf.putInts(extent.width, extent.height, extent.depth)
+					buf.putInt(sphereGrid.size)
 
-			// write the lines
-			for (v in sphereGrid) {
-				buf.putFloats(v.x, v.y, v.z)
-				buf.putFloat(0f) // padding
+					// write the lines
+					for (v in sphereGrid) {
+						buf.putFloats(v.x, v.y, v.z)
+						buf.putFloat(0f) // padding
+					}
+				}
 			}
-		}
 
 		// compute the bounding box for the occlusion field
 		val box = (
-			renderables.spheres.map { it.boundingBox }
-			+ renderables.cylinders.map { it.boundingBox }
-		).reduce { a, b -> AABBf(a).union(b) }
+				renderables.spheres.map { it.boundingBox }
+				+ renderables.cylinders.map { it.boundingBox }
+			)
+			.reduce { a, b -> AABBf(a).union(b) }
+			.apply {
 
-		// pad the box a little to give us some breathing room
-		box.expand(0.1f)
+				// pad the box a little to give us some breathing room
+				expand(0.1f)
+			}
 
 		// upload the spheres
 		val numSpheres = renderables.spheres.sumBy { it.numVertices }
@@ -173,15 +212,17 @@ internal class OcclusionCalculator(
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
-		spheresBuf.transferHtoD { buf ->
+			.apply {
+				transferHtoD { buf ->
 
-			buf.putInt(numSpheres)
-			buf.putInts(0, 0, 0) // padding
+					buf.putInt(numSpheres)
+					buf.putInts(0, 0, 0) // padding
 
-			// fill the buffer
-			renderables.spheres.forEach { it.fillOcclusionBuffer(buf) }
-			buf.flip()
-		}
+					// fill the buffer
+					renderables.spheres.forEach { it.fillOcclusionBuffer(buf) }
+					buf.flip()
+				}
+			}
 
 		// upload the cylinders
 		val numCylinders = renderables.cylinders.sumBy { it.numIndices/2 }
@@ -193,22 +234,24 @@ internal class OcclusionCalculator(
 			.autoClose()
 			.allocateDevice()
 			.autoClose()
-		cylindersBuf.transferHtoD { buf ->
+			.apply {
+				transferHtoD { buf ->
 
-			buf.putInt(numCylinders)
-			buf.putInts(0, 0, 0) // padding
+					buf.putInt(numCylinders)
+					buf.putInts(0, 0, 0) // padding
 
-			// fill the buffer
-			renderables.cylinders.forEach { it.fillOcclusionBuffer(buf) }
-			buf.flip()
-		}
+					// fill the buffer
+					renderables.cylinders.forEach { it.fillOcclusionBuffer(buf) }
+					buf.flip()
+				}
+			}
 
 		// allocate the occlusion image
 		val occlusionImage = device
 			.image(
-				type = field.blurredOcclusionImage.image.type,
+				type = blurredOcclusionImage.image.type,
 				extent = extent,
-				format = field.blurredOcclusionImage.image.format,
+				format = blurredOcclusionImage.image.format,
 				usage = IntFlags.of(Image.Usage.Storage, Image.Usage.TransferDst)
 			)
 			.autoClose()
@@ -216,76 +259,166 @@ internal class OcclusionCalculator(
 			.autoClose()
 		val occlusionView = occlusionImage.image.view().autoClose()
 
-		// update the descriptor sets
-		device.updateDescriptorSets(
-			writes = listOf(
-				descriptorSet.address(linesBinding).write(
-					DescriptorSet.BufferInfo(linesBuf.buffer)
-				),
-				descriptorSet.address(spheresBinding).write(
-					DescriptorSet.BufferInfo(spheresBuf.buffer)
-				),
-				descriptorSet.address(cylindersBinding).write(
-					DescriptorSet.BufferInfo(cylindersBuf.buffer)
-				),
-				descriptorSet.address(occlusionBinding).write(
-					DescriptorSet.ImageInfo(null, occlusionView, Image.Layout.General)
-				),
+		// upload the occlusion field info for fragment shaders
+		val boundsBuf = device
+			.buffer(
+				size = Int.SIZE_BYTES*4L + Float.SIZE_BYTES*8L,
+				usage = IntFlags.of(Buffer.Usage.UniformBuffer)
+			)
+			.autoClose()
+			.allocateDevice()
+			.autoClose()
+			.apply {
+				transferHtoD { buf ->
+					buf.putInts(
+						extent.width,
+						extent.height,
+						extent.depth
+					)
+					buf.putInt(maxOcclusion)
+					buf.putFloats(
+						box.minX, box.minY, box.minZ, 0f,
+						box.maxX, box.maxY, box.maxZ, 0f
+					)
+					buf.flip()
+				}
+			}
 
-				blurDescriptorSet.address(occlusionInBinding).write(
-					DescriptorSet.ImageInfo(null, occlusionView, Image.Layout.General)
-				),
-				blurDescriptorSet.address(occlusionOutBinding).write(
-					DescriptorSet.ImageInfo(null, field.blurredOcclusionView, Image.Layout.General)
+		init {
+			// update the descriptor sets
+			device.updateDescriptorSets(
+				writes = listOf(
+
+					descriptorSet.address(linesBinding).write(
+						DescriptorSet.BufferInfo(linesBuf.buffer)
+					),
+					descriptorSet.address(spheresBinding).write(
+						DescriptorSet.BufferInfo(spheresBuf.buffer)
+					),
+					descriptorSet.address(cylindersBinding).write(
+						DescriptorSet.BufferInfo(cylindersBuf.buffer)
+					),
+					descriptorSet.address(occlusionBinding).write(
+						DescriptorSet.ImageInfo(null, occlusionView, Image.Layout.General)
+					),
+
+					blurDescriptorSet.address(occlusionInBinding).write(
+						DescriptorSet.ImageInfo(null, occlusionView, Image.Layout.General)
+					),
+					blurDescriptorSet.address(occlusionOutBinding).write(
+						DescriptorSet.ImageInfo(null, blurredOcclusionView, Image.Layout.General)
+					)
 				)
 			)
-		)
 
-		// TEMP
-		time("occlusion") {
+			// clear the occlusion field
+			cmdbuf {
+				pipelineBarrier(
+					srcStage = IntFlags.of(PipelineStage.TopOfPipe),
+					dstStage = IntFlags.of(PipelineStage.ComputeShader),
+					images = listOf(
+						occlusionImage.image.barrier(
+							dstAccess = IntFlags.of(Access.ShaderRead, Access.ShaderWrite),
+							newLayout = Image.Layout.General
+						)
+					)
+				)
+				clearImage(occlusionImage.image, Image.Layout.General, ClearValue.Color.Int(0, 0, 0, 0))
+			}
+			queue.waitForIdle()
+		}
 
-			// call the compute shaders
-			queue.submit(
-				commandBuffer.apply {
-					begin(IntFlags.of(CommandBuffer.Usage.OneTimeSubmit))
+		fun updateDescriptorSet(slideRenderer: SlideRenderer) {
 
+			slideRenderer.device.updateDescriptorSets(
+				writes = listOf(
+					slideRenderer.mainDescriptorSet.address(slideRenderer.occlusionImageBinding).write(
+						DescriptorSet.ImageInfo(sampler, blurredOcclusionView, Image.Layout.ShaderReadOnlyOptimal)
+					),
+					slideRenderer.mainDescriptorSet.address(slideRenderer.boundsBinding).write(
+						DescriptorSet.BufferInfo(boundsBuf.buffer)
+					)
+				)
+			)
+		}
+
+		private var linesProcessed = 0
+
+		fun needsProcessing() = linesProcessed < sphereGrid.size
+
+		fun process() {
+
+			if (!needsProcessing()) {
+				return
+			}
+
+			// arbitrarily chosen, seems to work well on my laptop
+			val frameCostBudget = 500
+
+			// how many lines should we process this time?
+			// (cylinders are a bit more expensive to process than spheres)
+			val lineCost = numSpheres + numCylinders*2
+			val numLines = frameCostBudget/lineCost
+			val iLines = linesProcessed until min(sphereGrid.size, linesProcessed + numLines)
+
+			// call the compute shader
+			cmdbuf {
+				// prep the occlusion image
+				pipelineBarrier(
+					srcStage = IntFlags.of(PipelineStage.TopOfPipe),
+					dstStage = IntFlags.of(PipelineStage.ComputeShader),
+					images = listOf(
+						occlusionImage.image.barrier(
+							dstAccess = IntFlags.of(Access.ShaderWrite),
+							newLayout = Image.Layout.General
+						)
+					)
+				)
+
+				memstack { mem ->
+
+					// run the occlusion kernel
+					bindPipeline(pipeline)
+					bindDescriptorSet(descriptorSet, pipeline)
+					pushConstants(pipeline, IntFlags.of(ShaderStage.Compute), mem.malloc(16*2).apply {
+						putFloats(box.minX, box.minY, box.minZ)
+						putInt(iLines.first)
+						putFloats(box.maxX, box.maxY, box.maxZ)
+						putInt(iLines.last)
+						flip()
+					})
+					dispatch(
+						extent.width,
+						extent.height,
+						extent.depth
+						// no 4d kernels in Vulkan, so multiplex the z and line params to keep it 3d
+					)
+				}
+			}
+
+			linesProcessed += numLines
+
+			// if all the processing is done, apply the blur kernel
+			if (!needsProcessing()) {
+
+				cmdbuf {
 					// prep the occlusion image
 					pipelineBarrier(
 						srcStage = IntFlags.of(PipelineStage.TopOfPipe),
 						dstStage = IntFlags.of(PipelineStage.ComputeShader),
 						images = listOf(
 							occlusionImage.image.barrier(
-								dstAccess = IntFlags.of(Access.ShaderRead, Access.ShaderWrite),
+								dstAccess = IntFlags.of(Access.ShaderRead),
 								newLayout = Image.Layout.General
 							),
-							field.blurredOcclusionImage.image.barrier(
+							blurredOcclusionImage.image.barrier(
 								dstAccess = IntFlags.of(Access.ShaderWrite),
 								newLayout = Image.Layout.General
 							)
 						)
 					)
 
-					// clear the occlusion image
-					clearImage(occlusionImage.image, Image.Layout.General, ClearValue.Color.Int(0, 0, 0, 0))
-
 					memstack { mem ->
-
-						// run the occlusion kernel
-						bindPipeline(pipeline)
-						bindDescriptorSet(descriptorSet, pipeline)
-						pushConstants(pipeline, IntFlags.of(ShaderStage.Compute), mem.malloc(16*2).apply {
-							putFloats(box.minX, box.minY, box.minZ)
-							putFloat(0f) // padding
-							putFloats(box.maxX, box.maxY, box.maxZ)
-							putFloat(0f) // padding
-							flip()
-						})
-						dispatch(
-							field.extent.width,
-							field.extent.height,
-							field.extent.depth*sphereGrid.size
-							// no 4d kernels in Vulkan, so multiplex the z and line params to keep it 3d
-						)
 
 						// run the blur kernel
 						bindPipeline(blurPipeline)
@@ -296,94 +429,21 @@ internal class OcclusionCalculator(
 							putFloats(box.maxX, box.maxY, box.maxZ)
 							putFloat(0f) // padding
 							putInts(
-								field.extent.width,
-								field.extent.height,
-								field.extent.depth
+								extent.width,
+								extent.height,
+								extent.depth
 							)
 							putInt(maxOcclusion)
 							flip()
 						})
-						dispatch(field.extent)
+						dispatch(extent)
 					}
-
-					end()
 				}
-			)
-			queue.waitForIdle()
+			}
+
+			// don't to wait for the queue to finish on the CPU,
+			// the commands are correctly synchronized on the GPU already
 		}
-
-		// upload the occlusion field info for fragment shaders
-		field.boundsBuf.transferHtoD { buf ->
-			buf.putInts(
-				field.extent.width,
-				field.extent.height,
-				field.extent.depth
-			)
-			buf.putInt(maxOcclusion)
-			buf.putFloats(
-				box.minX, box.minY, box.minZ, 0f,
-				box.maxX, box.maxY, box.maxZ, 0f
-			)
-			buf.flip()
-		}
-
-		return field
-	}
-}
-
-internal class OcclusionField(
-	device: Device,
-	val extent: Extent3D
-) : AutoCloseable {
-
-	private val closer = AutoCloser()
-	private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
-	override fun close() = closer.close()
-
-	// allocate an image for the final blurred occlusion data
-	val blurredOcclusionImage = device
-		.image(
-			type = Image.Type.ThreeD,
-			extent = extent,
-			format = Image.Format.R32_SINT,
-			usage = IntFlags.of(Image.Usage.Storage, Image.Usage.Sampled)
-		)
-		.autoClose()
-		.allocateDevice()
-		.autoClose()
-	val blurredOcclusionView = blurredOcclusionImage.image.view().autoClose()
-
-	// allocate the bounds buffer
-	val boundsBuf = device
-		.buffer(
-			size = Int.SIZE_BYTES*4L + Float.SIZE_BYTES*8L,
-			usage = IntFlags.of(Buffer.Usage.UniformBuffer)
-		)
-		.autoClose()
-		.allocateDevice()
-		.autoClose()
-
-	// make an interpolating sampler for the occlusion image
-	private val sampler = device.sampler(
-		minFilter = Sampler.Filter.Linear,
-		magFilter = Sampler.Filter.Linear,
-		addressU = Sampler.Address.ClampToEdge,
-		addressV = Sampler.Address.ClampToEdge,
-		addressW = Sampler.Address.ClampToEdge
-	).autoClose()
-
-	fun updateDescriptorSet(slideRenderer: SlideRenderer) {
-
-		slideRenderer.device.updateDescriptorSets(
-			writes = listOf(
-				slideRenderer.mainDescriptorSet.address(slideRenderer.occlusionImageBinding).write(
-					DescriptorSet.ImageInfo(sampler, blurredOcclusionView, Image.Layout.ShaderReadOnlyOptimal)
-				),
-				slideRenderer.mainDescriptorSet.address(slideRenderer.boundsBinding).write(
-					DescriptorSet.BufferInfo(boundsBuf.buffer)
-				)
-			)
-		)
 	}
 }
 
@@ -419,7 +479,7 @@ internal class OcclusionRenderer(
 		)
 		.autoClose()
 
-	fun barriers(cmdbuf: CommandBuffer, field: OcclusionField) = cmdbuf.run {
+	fun barriers(cmdbuf: CommandBuffer, field: OcclusionCalculator.Field) = cmdbuf.run {
 
 		// prep the occlusion images
 		pipelineBarrier(
@@ -434,7 +494,7 @@ internal class OcclusionRenderer(
 		)
 	}
 
-	fun render(cmdbuf: CommandBuffer, field: OcclusionField) = cmdbuf.run {
+	fun render(cmdbuf: CommandBuffer, field: OcclusionCalculator.Field) = cmdbuf.run {
 
 		// render it!
 		bindPipeline(renderPipeline)
@@ -442,24 +502,3 @@ internal class OcclusionRenderer(
 		draw(field.extent.run { width*height*depth })
 	}
 }
-
-private fun Offset3D.neighbors(extent: Extent3D, includeCenter: Boolean, d: Int = 1) = ArrayList<Offset3D>().apply {
-	for (z in max(0, z - d) .. min(extent.depth - 1, z + d)) {
-		for (y in max(0, y - d) .. min(extent.height - 1, y + d)) {
-			for (x in max(0, x - d) .. min(extent.width - 1, x + d)) {
-
-				val sample = Offset3D(x, y, z)
-
-				// skip the (gooey) center if needed
-				if (!includeCenter && sample == this@neighbors) {
-					continue
-				}
-
-				add(sample)
-			}
-		}
-	}
-}
-
-private fun Offset3D.manhattanDistance(other: Offset3D) =
-	abs(x - other.x) + abs(y - other.y) + abs(z - other.z)

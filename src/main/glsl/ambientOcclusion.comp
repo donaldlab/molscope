@@ -4,9 +4,9 @@
 layout(push_constant, std140) uniform readonly restrict Bounds {
 	// (with padding to align vec3s at 16-byte boundaries)
 	vec3 min; // in world space
-	float pad0;
+	uint iLineMin;
 	vec3 max;
-	float pad1;
+	uint iLineMax;
 } inBounds;
 
 layout(binding = 0, std140) buffer readonly restrict Lines {
@@ -162,7 +162,7 @@ bool[2] intersect(Cylinder cylinder, vec3 line) {
 // what percentage of rays are obscured by geometry?
 // bin rays by cardinal direction
 
-// TODO: use some kind of acceleration structure to speed this up
+// TODO: use some kind of acceleration structure to speed this up?
 //       currently, we're just using naive brute force
 
 void main() {
@@ -171,78 +171,82 @@ void main() {
 	uvec3 iSample = uvec3(
 		gl_GlobalInvocationID.x,
 		gl_GlobalInvocationID.y,
-		gl_GlobalInvocationID.z/inLines.size
+		gl_GlobalInvocationID.z
 	);
-	uint iLine = gl_GlobalInvocationID.z % inLines.size;
-	vec3 line = inLines.buf[iLine].xyz;
 
 	// convert the sample index to a position in world space within the bounds
 	vec3 p = inBounds.min + vec3(iSample)*(inBounds.max - inBounds.min)/vec3(inLines.samples - uvec3(1));
 
-	// cast both rays on this line
-	bool castingNeg = true;
-	bool castingPos = true;
-
-	// 1. check all the spheres
-	if (castingNeg || castingPos) {
-		for (uint i=0; i<inSpheres.size; i++) {
-			Sphere sphere = inSpheres.buf[i];
-
-			// transform the sphere into a coord system relative to the ray source
-			sphere.pos -= p;
-
-			// intersect the sphere and line
-			bool[2] hit = intersect(sphere, line);
-
-			// update rays based on side hits
-			if (hit[SIDE_NEG] && castingNeg) {
-				castingNeg = false;
-			}
-			if (hit[SIDE_POS] && castingPos) {
-				castingPos = false;
-			}
-
-			// if we're done casting, we can stop early
-			if (!castingNeg && !castingPos) {
-				break;
-			}
-		}
-	}
-
-	// 2. check all the cylinders
-	if (castingNeg || castingPos) {
-		for (uint i=0; i<inCylinders.size; i++) {
-			Cylinder cylinder = inCylinders.buf[i];
-
-			// transform the cylinder into a coord system relative to the ray source
-			cylinder.pos0 -= p;
-			cylinder.pos1 -= p;
-
-			// intersect the sphere and line
-			bool[2] hit = intersect(cylinder, line);
-
-			// update rays based on side hits
-			if (hit[SIDE_NEG] && castingNeg) {
-				castingNeg = false;
-			}
-			if (hit[SIDE_POS] && castingPos) {
-				castingPos = false;
-			}
-
-			// if we're done casting, we can stop early
-			if (!castingNeg && !castingPos) {
-				break;
-			}
-		}
-	}
-
-	// update occlusion counts for both rays
+	// loop over the lines in the range and count the occlusions
 	int occlusions = 0;
-	if (!castingNeg) {
-		occlusions++;
+	for (uint iLine=inBounds.iLineMin; iLine<=inBounds.iLineMax; iLine++) {
+		vec3 line = inLines.buf[iLine].xyz;
+
+		// cast both rays on this line
+		bool castingNeg = true;
+		bool castingPos = true;
+
+		// 1. check all the spheres
+		if (castingNeg || castingPos) {
+			for (uint i=0; i<inSpheres.size; i++) {
+				Sphere sphere = inSpheres.buf[i];
+
+				// transform the sphere into a coord system relative to the ray source
+				sphere.pos -= p;
+
+				// intersect the sphere and line
+				bool[2] hit = intersect(sphere, line);
+
+				// update rays based on side hits
+				if (hit[SIDE_NEG] && castingNeg) {
+					castingNeg = false;
+				}
+				if (hit[SIDE_POS] && castingPos) {
+					castingPos = false;
+				}
+
+				// if we're done casting, we can stop early
+				if (!castingNeg && !castingPos) {
+					break;
+				}
+			}
+		}
+
+		// 2. check all the cylinders
+		if (castingNeg || castingPos) {
+			for (uint i=0; i<inCylinders.size; i++) {
+				Cylinder cylinder = inCylinders.buf[i];
+
+				// transform the cylinder into a coord system relative to the ray source
+				cylinder.pos0 -= p;
+				cylinder.pos1 -= p;
+
+				// intersect the sphere and line
+				bool[2] hit = intersect(cylinder, line);
+
+				// update rays based on side hits
+				if (hit[SIDE_NEG] && castingNeg) {
+					castingNeg = false;
+				}
+				if (hit[SIDE_POS] && castingPos) {
+					castingPos = false;
+				}
+
+				// if we're done casting, we can stop early
+				if (!castingNeg && !castingPos) {
+					break;
+				}
+			}
+		}
+
+		// update occlusion counts for both rays
+		if (!castingNeg) {
+			occlusions++;
+		}
+		if (!castingPos) {
+			occlusions++;
+		}
 	}
-	if (!castingPos) {
-		occlusions++;
-	}
+
 	imageAtomicAdd(outOcclusion, ivec3(iSample), occlusions);
 }

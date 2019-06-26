@@ -15,7 +15,7 @@ layout(binding = 0, r32i) uniform restrict iimage3D inOcclusion;
 layout(binding = 1, r32i) uniform restrict iimage3D outOcclusion;
 
 
-// weights for a 3x3 blur kernel, in order of increasing manhattan distance from the center
+// weights for a 3x3x3 blur kernel, in order of increasing manhattan distance from the center
 const int[] weights = { 16, 9, 4, 1 };
 
 int getWeight(ivec3 offset) {
@@ -67,7 +67,7 @@ void main() {
 
 	ivec3 i = ivec3(gl_GlobalInvocationID);
 
-	// explore the neighborhood
+	// explore the 3x3x3 neighborhood
 	Sum sum = { 0, 0 };
 
 	sum = updateSum(sum, i, ivec3(-1, -1, -1));
