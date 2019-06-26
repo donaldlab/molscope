@@ -56,7 +56,7 @@ class ViewRenderSettings : SlideFeature(menu, name) {
 			if (sliderFloat("Depth Fade", pDepthWeight, 0f, 1f, "%.2f")) {
 				slidewin.renderSettings.depthWeight = pDepthWeight.value
 			}
-			if (sliderFloat("Ambient Occlusion", pAmbientOcclusionWeight, 0f, 2f, "%.2f")) {
+			if (sliderFloat("Ambient Occlusion", pAmbientOcclusionWeight, 0f, 4f, "%.2f")) {
 				slidewin.renderSettings.ambientOcclusionWeight = pAmbientOcclusionWeight.value
 			}
 

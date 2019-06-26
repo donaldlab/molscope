@@ -5,6 +5,7 @@ import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.tools.SphereGrid
 import org.joml.AABBf
+import kotlin.math.max
 import kotlin.math.min
 
 
@@ -26,10 +27,12 @@ internal class OcclusionCalculator(
 	override fun close() = closer.close()
 
 	private val descriptorPool = device.descriptorPool(
-		maxSets = 2,
+		maxSets = 3,
 		sizes = DescriptorType.Counts(
-			DescriptorType.StorageBuffer to 3,
-			DescriptorType.StorageImage to 3
+			DescriptorType.StorageBuffer to 6,
+			DescriptorType.StorageImage to 3,
+			DescriptorType.CombinedImageSampler to 1,
+			DescriptorType.UniformBuffer to 1
 		)
 	).autoClose()
 
@@ -93,6 +96,44 @@ internal class OcclusionCalculator(
 			pushConstantRanges = listOf(
 				PushConstantRange(IntFlags.of(ShaderStage.Compute), 16*3)
 			)
+		).autoClose()
+
+	// make the min pipeline
+	private val minOcclusionImageBinding = DescriptorSetLayout.Binding(
+		binding = 1,
+		type = DescriptorType.CombinedImageSampler,
+		stages = IntFlags.of(ShaderStage.Compute)
+	)
+	private val minBoundsBinding = DescriptorSetLayout.Binding(
+		binding = 2,
+		type = DescriptorType.UniformBuffer,
+		stages = IntFlags.of(ShaderStage.Compute)
+	)
+	private val minSpheresBinding = DescriptorSetLayout.Binding(
+		binding = 4,
+		type = DescriptorType.StorageBuffer,
+		stages = IntFlags.of(ShaderStage.Compute)
+	)
+	private val minCylindersBinding = DescriptorSetLayout.Binding(
+		binding = 5,
+		type = DescriptorType.StorageBuffer,
+		stages = IntFlags.of(ShaderStage.Compute)
+	)
+	private val minOutBinding = DescriptorSetLayout.Binding(
+		binding = 6,
+		type = DescriptorType.StorageBuffer,
+		stages = IntFlags.of(ShaderStage.Compute)
+	)
+	private val minDescriptorSetLayout = device.descriptorSetLayout(listOf(
+		minOcclusionImageBinding, minBoundsBinding, minSpheresBinding, minCylindersBinding, minOutBinding
+	)).autoClose()
+	private val minDescriptorSet = descriptorPool.allocate(minDescriptorSetLayout)
+	private val minPipeline = device
+		.computePipeline(
+			stage = device.shaderModule(Shaders["occlusionMin.comp"])
+				.autoClose()
+				.stage("main", ShaderStage.Compute),
+			descriptorSetLayouts = listOf(minDescriptorSetLayout)
 		).autoClose()
 
 	// make a command buffer
@@ -246,6 +287,16 @@ internal class OcclusionCalculator(
 				}
 			}
 
+		// allocate the buffer for the min occlusion
+		val minBuf = device
+			.buffer(
+				size = Float.SIZE_BYTES*(numSpheres + numCylinders).toLong(),
+				usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferSrc)
+			)
+			.autoClose()
+			.allocateDevice()
+			.autoClose()
+
 		// allocate the occlusion image
 		val occlusionImage = device
 			.image(
@@ -276,10 +327,10 @@ internal class OcclusionCalculator(
 						extent.depth
 					)
 					buf.putInt(maxOcclusion)
-					buf.putFloats(
-						box.minX, box.minY, box.minZ, 0f,
-						box.maxX, box.maxY, box.maxZ, 0f
-					)
+					buf.putFloats(box.minX, box.minY, box.minZ)
+					buf.putFloat(1f) // initial min is 1
+					buf.putFloats(box.maxX, box.maxY, box.maxZ)
+					buf.putFloat(0f) // padding
 					buf.flip()
 				}
 			}
@@ -307,6 +358,22 @@ internal class OcclusionCalculator(
 					),
 					blurDescriptorSet.address(occlusionOutBinding).write(
 						DescriptorSet.ImageInfo(null, blurredOcclusionView, Image.Layout.General)
+					),
+
+					minDescriptorSet.address(minOcclusionImageBinding).write(
+						DescriptorSet.ImageInfo(sampler, blurredOcclusionView, Image.Layout.General)
+					),
+					minDescriptorSet.address(minBoundsBinding).write(
+						DescriptorSet.BufferInfo(boundsBuf.buffer)
+					),
+					minDescriptorSet.address(minSpheresBinding).write(
+						DescriptorSet.BufferInfo(spheresBuf.buffer)
+					),
+					minDescriptorSet.address(minCylindersBinding).write(
+						DescriptorSet.BufferInfo(cylindersBuf.buffer)
+					),
+					minDescriptorSet.address(minOutBinding).write(
+						DescriptorSet.BufferInfo(minBuf.buffer)
 					)
 				)
 			)
@@ -358,7 +425,7 @@ internal class OcclusionCalculator(
 			// how many lines should we process this time?
 			// (cylinders are a bit more expensive to process than spheres)
 			val lineCost = numSpheres + numCylinders*2
-			val numLines = frameCostBudget/lineCost
+			val numLines = max(1, frameCostBudget/lineCost)
 			val iLines = linesProcessed until min(sphereGrid.size, linesProcessed + numLines)
 
 			// call the compute shader
@@ -398,10 +465,13 @@ internal class OcclusionCalculator(
 
 			linesProcessed += numLines
 
-			// if all the processing is done, apply the blur kernel
+			// TODO: show GUI progress bar for lighting calculations?
+
+			// if all the processing is done, apply the post processing
 			if (!needsProcessing()) {
 
 				cmdbuf {
+
 					// prep the occlusion image
 					pipelineBarrier(
 						srcStage = IntFlags.of(PipelineStage.TopOfPipe),
@@ -437,12 +507,31 @@ internal class OcclusionCalculator(
 							flip()
 						})
 						dispatch(extent)
+
+						// run the min kernel
+						bindPipeline(minPipeline)
+						bindDescriptorSet(minDescriptorSet, minPipeline)
+						dispatch(numSpheres + numCylinders)
 					}
 				}
-			}
 
-			// don't to wait for the queue to finish on the CPU,
-			// the commands are correctly synchronized on the GPU already
+				// wait for the kernels to finish, so we can read the min occlusion
+				queue.waitForIdle()
+
+				// read the min occlusion
+				var minOcclusion = 1f
+				minBuf.transferDtoH { buf ->
+					for (i in 0 until numSpheres + numCylinders) {
+						minOcclusion = min(minOcclusion, buf.float)
+					}
+				}
+
+				// write the min occlusion to the bounds buf
+				boundsBuf.transferHtoD { buf ->
+					buf.position = 28
+					buf.putFloat(minOcclusion)
+				}
+			}
 		}
 	}
 }

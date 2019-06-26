@@ -13,7 +13,7 @@ layout(binding = 2, std140) uniform readonly restrict OcclusionField {
 	ivec3 samples;
 	int maxOcclusion;
 	vec3 min; // in world space
-	float pad2;
+	float minOcclusion; // in [0,1], offset = 28
 	vec3 max;
 	float pad3;
 } inOcclusionField;
@@ -75,6 +75,7 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 		rgb = mix(rgb, pbrLambert(rgb, normalCamera, inSettings.lightWeight), inSettings.shadingWeight);
 	}
 
+	// TODO: use background color instead of grey
 	// apply depth fading (ie far away things are more grey)
 	if (inSettings.depthWeight > 0) {
 		float depth = cameraToNDC(posCamera).z;
@@ -83,7 +84,16 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 
 	// apply ambient occlusion
 	if (inSettings.ambientOcclusionWeight > 0) {
-		rgb *= 1 - inSettings.ambientOcclusionWeight*sampleOcclusion(worldToOcclusionField(cameraToWorld(posCamera)));
+		float occlusion = sampleOcclusion(worldToOcclusionField(cameraToWorld(posCamera)));
+
+		// normalize occlusion so the min is actually 0
+		if (inOcclusionField.minOcclusion >= 1) {
+			occlusion = 0;
+		} else {
+			occlusion = max(0, occlusion - inOcclusionField.minOcclusion)/(1 - inOcclusionField.minOcclusion);
+		}
+
+		rgb *= 1 - inSettings.ambientOcclusionWeight*occlusion;
 	}
 	
 	return vec4(rgb, color.a);

@@ -5,6 +5,7 @@
 
 const float NAN = 0.0/0.0;
 const float PI = 3.141592654;
+const float TwoPI = 2*PI;
 
 
 float length2(vec3 a) {
