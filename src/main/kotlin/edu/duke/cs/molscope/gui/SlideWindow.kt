@@ -145,7 +145,7 @@ internal class SlideWindow(
 			// get the occlusion field
 			// if we don't have one, we must not have any geometry either, so skip the render
 			val occlusionField = occlusionField ?: return false
-			if (occlusionField.needsProcessing()) {
+			if (occlusionField.needsProcessing) {
 				occlusionField.process()
 			}
 
@@ -185,12 +185,26 @@ internal class SlideWindow(
 
 	fun gui(imgui: Commands) = imgui.run {
 
+		// to start, the window title is the slide name
+		var title = slide.name
+
+		// append rendering progress to the window title
+		occlusionField?.let { field ->
+			val progress = field.processingProgress
+			if (progress < 1.0) {
+				title += " (lighting ${"%.0f".format(progress*100.0)}%)"
+			}
+		}
+
+		// add a unique id for this window
+		title += "###${System.identityHashCode(slide)}"
+
 		// start the window
 		setNextWindowSizeConstraints(
 			320f, 240f,
 			Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY
 		)
-		if (!begin(slide.name, flags = IntFlags.of(Commands.BeginFlags.MenuBar))) {
+		if (!begin(title, flags = IntFlags.of(Commands.BeginFlags.MenuBar, Commands.BeginFlags.NoBringToFrontOnFocus))) {
 			end()
 			return
 		}

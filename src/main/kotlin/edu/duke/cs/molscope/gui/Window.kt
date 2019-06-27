@@ -185,7 +185,12 @@ internal class WindowThread(
 		Imgui.context().autoClose()
 
 		// configure ImGUI
-		Imgui.io.configWindowsMoveFromTitleBarOnly = true
+		Imgui.io.apply {
+			configWindowsMoveFromTitleBarOnly = true
+
+			// disable saving window positions between runs by default
+			iniFilename = null
+		}
 
 		// start with dark colors by default (can change in main menu)
 		Imgui.styleColors = Imgui.StyleColors.Dark

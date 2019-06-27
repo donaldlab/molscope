@@ -411,11 +411,12 @@ internal class OcclusionCalculator(
 
 		private var linesProcessed = 0
 
-		fun needsProcessing() = linesProcessed < sphereGrid.size
+		val processingProgress get() = linesProcessed.toDouble()/sphereGrid.size.toDouble()
+		val needsProcessing get() = linesProcessed < sphereGrid.size
 
 		fun process() {
 
-			if (!needsProcessing()) {
+			if (!needsProcessing) {
 				return
 			}
 
@@ -468,7 +469,7 @@ internal class OcclusionCalculator(
 			// TODO: show GUI progress bar for lighting calculations?
 
 			// if all the processing is done, apply the post processing
-			if (!needsProcessing()) {
+			if (!needsProcessing) {
 
 				cmdbuf {
 
