@@ -2,9 +2,7 @@ package edu.duke.cs.molscope.view
 
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.putColor4Bytes
-import edu.duke.cs.molscope.molecule.Atom
-import edu.duke.cs.molscope.molecule.Element
-import edu.duke.cs.molscope.molecule.Molecule
+import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.render.SphereRenderable
 import org.joml.AABBf
 import java.nio.ByteBuffer
@@ -15,20 +13,20 @@ import java.nio.ByteBuffer
  */
 // TODO: optimize molecule transformations so we don't have to re-create the whole view for a large molecule?
 class SpaceFilling(
-	molecule: Molecule
-	// TODO: molecule subset selection?
+	molecule: Molecule,
+	selector: MoleculeSelector = MoleculeSelectors.all
 ): RenderView {
 
-	// make a copy of the molecule
-	private val mol = molecule.copy()
+	// make a copy of the molecule and apply the selection
+	private val sel = selector(molecule.copy())
 
 	internal val sphereRenderable = object : SphereRenderable {
 		
-		override val numVertices = mol.atoms.size
+		override val numVertices = sel.size
 		
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
-			mol.atoms.forEachIndexed { atomIndex, atom ->
+			sel.forEachIndexed { atomIndex, atom ->
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x.toFloat())
@@ -49,7 +47,7 @@ class SpaceFilling(
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
-			for (atom in mol.atoms) {
+			for (atom in sel) {
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x.toFloat())
@@ -65,7 +63,7 @@ class SpaceFilling(
 
 	override fun calcBoundingBox() =
 		AABBf().apply {
-			mol.atoms.forEachIndexed { i, atom ->
+			sel.forEachIndexed { i, atom ->
 
 				val x = atom.pos.x.toFloat()
 				val y = atom.pos.y.toFloat()
@@ -82,7 +80,7 @@ class SpaceFilling(
 			}
 		}
 
-	override fun getIndexed(index: Int) = mol.atoms.getOrNull(index)
+	override fun getIndexed(index: Int) = sel.getOrNull(index)
 	// TODO: allow indexing other things?
 
 

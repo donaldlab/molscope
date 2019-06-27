@@ -243,11 +243,14 @@ internal class OcclusionCalculator(
 				expand(0.1f)
 			}
 
+		// Vulkan won't allow 0-sized buffers, so use at least one byte
+		private fun bufSize(size: Long) = max(1L, size)
+
 		// upload the spheres
 		val numSpheres = renderables.spheres.sumBy { it.numVertices }
 		val spheresBuf = device
 			.buffer(
-				size = 16L + numSpheres*16L, // sizeof(struct Sphere)
+				size = bufSize(16L + numSpheres*16L), // sizeof(struct Sphere)
 				usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferDst)
 			)
 			.autoClose()
@@ -269,7 +272,7 @@ internal class OcclusionCalculator(
 		val numCylinders = renderables.cylinders.sumBy { it.numIndices/2 }
 		val cylindersBuf = device
 			.buffer(
-				size = 16L + numCylinders*32L, // sizeof(struct Cylinder)
+				size = bufSize(16L + numCylinders*32L), // sizeof(struct Cylinder)
 				usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferDst)
 			)
 			.autoClose()
@@ -290,7 +293,7 @@ internal class OcclusionCalculator(
 		// allocate the buffer for the min occlusion
 		val minBuf = device
 			.buffer(
-				size = Float.SIZE_BYTES*(numSpheres + numCylinders).toLong(),
+				size = bufSize(Float.SIZE_BYTES*(numSpheres + numCylinders).toLong()),
 				usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferSrc)
 			)
 			.autoClose()
@@ -425,7 +428,7 @@ internal class OcclusionCalculator(
 
 			// how many lines should we process this time?
 			// (cylinders are a bit more expensive to process than spheres)
-			val lineCost = numSpheres + numCylinders*2
+			val lineCost = 1 + numSpheres + numCylinders*2
 			val numLines = max(1, frameCostBudget/lineCost)
 			val iLines = linesProcessed until min(sphereGrid.size, linesProcessed + numLines)
 

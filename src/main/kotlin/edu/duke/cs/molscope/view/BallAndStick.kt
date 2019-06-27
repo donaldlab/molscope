@@ -2,9 +2,7 @@ package edu.duke.cs.molscope.view
 
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.putColor4Bytes
-import edu.duke.cs.molscope.molecule.Atom
-import edu.duke.cs.molscope.molecule.Element
-import edu.duke.cs.molscope.molecule.Molecule
+import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.render.CylinderRenderable
 import edu.duke.cs.molscope.render.SphereRenderable
 import org.joml.AABBf
@@ -15,19 +13,23 @@ import java.nio.ByteBuffer
  * views a molecule using the ball and stick convention
  */
 class BallAndStick(
-	molecule: Molecule
-	// TODO: molecule subset selection?
+	molecule: Molecule,
+	selector: MoleculeSelector = MoleculeSelectors.all
 ): RenderView {
 
-	// make a copy of the molecule
+	// make a copy of the molecule and apply the selection
 	private val mol = molecule.copy()
+	private val sel = selector(mol)
 
-	// collect all the bonds as a list
+	// copy all the bonds (in the selection) as a list
 	data class Bond(val i1: Int, val i2: Int)
 	private val bonds = HashSet<Bond>().apply {
-		mol.atoms.forEachIndexed { i1, a1 ->
+		sel.forEachIndexed { i1, a1 ->
 			for (a2 in mol.bonds.bondedAtoms(a1)) {
-				val i2 = mol.atoms.indexOf(a2)
+				val i2 = sel.indexOf(a2)
+				if (i2 < 0) {
+					continue
+				}
 
 				// sort the indices to normalize the bond
 				add(if (i1 < i2) {
@@ -43,11 +45,11 @@ class BallAndStick(
 	// render the atoms as spheres
 	internal val sphereRenderable = object : SphereRenderable {
 
-		override val numVertices = mol.atoms.size
+		override val numVertices = sel.size
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
-			mol.atoms.forEachIndexed { atomIndex, atom ->
+			sel.forEachIndexed { atomIndex, atom ->
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x().toFloat())
@@ -68,7 +70,7 @@ class BallAndStick(
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
-			for (atom in mol.atoms) {
+			for (atom in sel) {
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x.toFloat())
@@ -82,10 +84,10 @@ class BallAndStick(
 	// render the bonds as cylinders
 	internal val cylinderRenderable = object : CylinderRenderable {
 
-		override val numVertices = mol.atoms.size
+		override val numVertices = sel.size
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
-			mol.atoms.forEachIndexed { atomIndex, atom ->
+			sel.forEachIndexed { atomIndex, atom ->
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x().toFloat())
@@ -113,8 +115,8 @@ class BallAndStick(
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 			for (bond in bonds) {
-				val atom1 = mol.atoms[bond.i1]
-				val atom2 = mol.atoms[bond.i2]
+				val atom1 = sel[bond.i1]
+				val atom2 = sel[bond.i2]
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom1.pos.x().toFloat())
@@ -134,7 +136,7 @@ class BallAndStick(
 
 			val r = atomRadius
 
-			mol.atoms.forEachIndexed { i, atom ->
+			sel.forEachIndexed { i, atom ->
 
 				val x = atom.pos.x.toFloat()
 				val y = atom.pos.y.toFloat()
@@ -151,7 +153,7 @@ class BallAndStick(
 		}
 
 
-	override fun getIndexed(index: Int) = mol.atoms.getOrNull(index)
+	override fun getIndexed(index: Int) = sel.getOrNull(index)
 	// TODO: allow indexing other things?
 
 

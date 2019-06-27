@@ -116,8 +116,16 @@ fun main() = autoCloser {
 		bonds.add(bca, bc)
 		bonds.add(bc, bo)
 
-		chain.add(Residue("GLU", listOf(an, ah, aca, aha, acb, a2hb, a3hb, acg, a2hg, a3hg, acd, aoe1, aoe2, ac, ao)))
-		chain.add(Residue("ILE", listOf(bh, bn, bca, bha, bcb, bhb, bcg2, b1hg2, b2hg2, b3hg2, bcg1, b2hg1, b3hg1, bcd1, b1hd1, b2hd1, b3hd1, bc, bo)))
+		chain.add(Residue(
+			"GLU",
+			mainchain = listOf(an, ah, aca, aha, ac, ao),
+			sidechains = listOf(listOf(acb, a2hb, a3hb, acg, a2hg, a3hg, acd, aoe1, aoe2))
+		))
+		chain.add(Residue(
+			"ILE",
+			mainchain = listOf(bh, bn, bca, bha, bc, bo),
+			sidechains = listOf(listOf(bcb, bhb, bcg2, b1hg2, b2hg2, b3hg2, bcg1, b2hg1, b3hg1, bcd1, b1hd1, b2hd1, b3hd1))
+		))
 	}
 
 	// open a window
@@ -158,7 +166,7 @@ fun main() = autoCloser {
 	// prepare a slide for the dipeptide
 	win.slides.add(Slide(dipeptide.name).apply {
 		lock { s ->
-			s.views.add(BallAndStick(dipeptide))
+			s.views.add(BallAndStick(dipeptide, MoleculeSelectors.mainchain))
 			s.camera.lookAtEverything()
 		}
 	})

@@ -18,22 +18,30 @@ open class Molecule(val name: String) {
 
 	override fun toString() = name
 
-	constructor(other: Molecule) : this(other.name) {
+	open fun copy() = Molecule(name).apply {
+		val src = this@Molecule
+		val dst = this@apply
+		src.copyTo(dst)
+	}
+
+	fun copyTo(dst: Molecule): Map<Atom,Atom> {
+		val src = this
 
 		// copy the atoms
-		val atomMap = other.atoms.list.associate { it to it.copy() }
-		this.atoms.list.addAll(atomMap.values)
+		val atomMap = src.atoms.list.associate { it to it.copy() }
+		dst.atoms.list.addAll(atomMap.values)
 
 		// copy the bonds
-		for ((otherAtom, otherBondedAtoms) in other.bonds.adjacency) {
+		for ((otherAtom, otherBondedAtoms) in src.bonds.adjacency) {
 			val atom = atomMap[otherAtom]!!
 			for (otherBondedAtom in otherBondedAtoms) {
 				val bondedAtom = atomMap[otherBondedAtom]!!
-				this.bonds.add(atom, bondedAtom)
+				dst.bonds.add(atom, bondedAtom)
 			}
 		}
+
+		return atomMap
 	}
-	fun copy() = Molecule(this)
 
 
 	inner class Atoms internal constructor(internal val list: MutableList<Atom> = ArrayList()) : List<Atom> by list {
