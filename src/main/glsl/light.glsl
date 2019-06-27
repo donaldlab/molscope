@@ -19,6 +19,7 @@ layout(binding = 2, std140) uniform readonly restrict OcclusionField {
 } inOcclusionField;
 
 layout(binding = 3, std140) uniform readonly restrict Settings {
+	vec3 backgroundColor;
 	float colorWeight;
 	float shadingWeight;
 	float lightWeight;
@@ -75,11 +76,10 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 		rgb = mix(rgb, pbrLambert(rgb, normalCamera, inSettings.lightWeight), inSettings.shadingWeight);
 	}
 
-	// TODO: use background color instead of grey
-	// apply depth fading (ie far away things are more grey)
+	// apply depth fading (ie far away things are more like the background)
 	if (inSettings.depthWeight > 0) {
 		float depth = cameraToNDC(posCamera).z;
-		rgb = mix(rgb, vec3(0.5, 0.5, 0.5), inSettings.depthWeight*depth);
+		rgb = mix(rgb, inSettings.backgroundColor, inSettings.depthWeight*depth);
 	}
 
 	// apply ambient occlusion

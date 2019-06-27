@@ -17,7 +17,7 @@ internal class SlideRenderer(
 	val width: Int,
 	val height: Int,
 	oldRenderer: SlideRenderer? = null,
-	var backgroundColor: ColorRGBA = ColorRGBA.Float(0f, 0f, 0f)
+	backgroundColor: ColorRGBA = ColorRGBA.Float(0f, 0f, 0f)
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
@@ -38,6 +38,14 @@ internal class SlideRenderer(
 		?.settings
 		?.apply { dirty = true }
 		?: RenderSettings()
+
+	var backgroundColor: ColorRGBA = backgroundColor
+		set(value) {
+			field = value
+
+			// sync the settings with the background color
+			settings.backgroundColor = Vector3f(backgroundColor.rf, backgroundColor.gf, backgroundColor.bf)
+		}
 
 	// make the main render pass
 	val colorAttachment =
@@ -674,9 +682,10 @@ class RenderSettings {
 	}
 
 	companion object {
-		val bufferSize: Long = Float.SIZE_BYTES*5L
+		val bufferSize: Long = Float.SIZE_BYTES*8L
 	}
 
+	var backgroundColor: Vector3f by Dirtyable(Vector3f(0f, 0f, 0f))
 	var colorWeight: Float by Dirtyable(1f)
 	var lightWeight: Float by Dirtyable(1f)
 	var shadingWeight: Float by Dirtyable(1f)
@@ -687,7 +696,8 @@ class RenderSettings {
 }
 
 private fun ByteBuffer.putSettings(settings: RenderSettings) {
-	putFloats(settings.colorWeight)
+	putFloats(settings.backgroundColor[0], settings.backgroundColor[1], settings.backgroundColor[2])
+	putFloat(settings.colorWeight)
 	putFloat(settings.shadingWeight)
 	putFloat(settings.lightWeight)
 	putFloat(settings.depthWeight)
