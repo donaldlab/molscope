@@ -38,26 +38,36 @@ internal class SphereRenderer(
 					.stage("main", ShaderStage.Fragment)
 			),
 			vertexInput = VertexInput {
-				binding(stride = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES) {
+				binding(stride = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES*2) {
+					// pos
 					attribute(
 						location = 0,
 						format = Image.Format.R32G32B32_SFLOAT,
 						offset = 0
 					)
+					// radius
 					attribute(
 						location = 1,
 						format = Image.Format.R32_SFLOAT,
 						offset = Float.SIZE_BYTES*3
 					)
+					// color
 					attribute(
 						location = 2,
 						format = Image.Format.R8G8B8A8_UNORM,
 						offset = Float.SIZE_BYTES*4
 					)
+					// target index
 					attribute(
 						location = 3,
 						format = Image.Format.R32_SINT,
 						offset = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4
+					)
+					// effects
+					attribute(
+						location = 4,
+						format = Image.Format.R8G8B8A8_UINT,
+						offset = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES
 					)
 				}
 			},
@@ -89,7 +99,7 @@ internal class SphereRenderer(
 		fun update(colorsMode: ColorsMode) {
 
 			// track state changes
-			dirtyness.update(colorsMode)
+			dirtyness.update(colorsMode, src.verticesSequence)
 			if (!dirtyness.isDirty) {
 				return
 			}
@@ -151,6 +161,7 @@ internal class SphereRenderer(
 
 internal interface SphereRenderable {
 	val numVertices: Int
+	val verticesSequence: Int
 	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)
 	val boundingBox: AABBf
 	fun fillOcclusionBuffer(buf: ByteBuffer)

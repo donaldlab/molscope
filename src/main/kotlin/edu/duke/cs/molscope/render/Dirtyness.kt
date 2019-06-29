@@ -16,7 +16,7 @@ class Dirtyness {
 	 * always returns true on the first invocation
 	 */
 	fun update(newState: List<Any?>) {
-		isDirty = state == newState
+		isDirty = state != newState
 		state = newState
 	}
 

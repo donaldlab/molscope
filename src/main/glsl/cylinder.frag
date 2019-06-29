@@ -4,9 +4,11 @@ layout(location = 0) flat in vec3 inPosCamera[2];
 layout(location = 2) flat in float inRadiusCamera[2];
 layout(location = 4) flat in vec4 inColor[2];
 layout(location = 6) flat in int inIndex[2];
+layout(location = 8) flat in uvec4 inEffect[2];
 
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out ivec2 outIndex;
+layout(location = 1) out ivec2 outIndices;
+layout(location = 2) out uvec4 outEffect;
 layout(depth_any) out; // float gl_FragDepth
 
 layout(push_constant) uniform ViewIndex {
@@ -88,7 +90,8 @@ void main() {
 		uint iEnd = tCylinder <= 0.5 ? 0 : 1;
 
 		outColor = light(inColor[iEnd], posPixelCamera, normal);
-		outIndex = ivec2(inIndex[iEnd], inViewIndex);
+		outIndices = ivec2(inIndex[iEnd], inViewIndex);
+		outEffect = inEffect[iEnd];
 		gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
 	} else {
@@ -126,14 +129,16 @@ void main() {
 			posPixelCamera.z = zEndcap[iEndcap];
 
 			outColor = light(inColor[iEndcap], posPixelCamera, normalEndcap[iEndcap]);
-			outIndex = ivec2(inIndex[iEndcap], inViewIndex);
+			outIndices = ivec2(inIndex[iEndcap], inViewIndex);
+			outEffect = inEffect[iEndcap];
 			gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
 		} else {
 
 			// no intersection
 			outColor = vec4(0);
-			outIndex = ivec2(-1, -1);
+			outIndices = ivec2(-1, -1);
+			outEffect = ivec4(0, 0, 0, 0);
 			gl_FragDepth = 1;
 		}
 	}

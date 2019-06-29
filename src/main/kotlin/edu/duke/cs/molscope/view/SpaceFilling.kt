@@ -3,7 +3,9 @@ package edu.duke.cs.molscope.view
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.putColor4Bytes
 import edu.duke.cs.molscope.molecule.*
+import edu.duke.cs.molscope.render.RenderEffects
 import edu.duke.cs.molscope.render.SphereRenderable
+import edu.duke.cs.molscope.render.put
 import org.joml.AABBf
 import java.nio.ByteBuffer
 
@@ -18,11 +20,15 @@ class SpaceFilling(
 ): RenderView {
 
 	// make a copy of the molecule and apply the selection
-	private val sel = selector(molecule.copy())
+	override val mol = molecule.copy()
+	val sel = selector(mol)
+
+	override var renderEffects = RenderEffects(mol)
 
 	internal val sphereRenderable = object : SphereRenderable {
 		
 		override val numVertices = sel.size
+		override val verticesSequence get() = renderEffects.sequence
 		
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
@@ -40,6 +46,7 @@ class SpaceFilling(
 
 				// TODO: allow different indexing strategies (eg residue, molecule)
 				buf.putInt(atomIndex)
+				buf.put(renderEffects[atom])
 			}
 		}
 

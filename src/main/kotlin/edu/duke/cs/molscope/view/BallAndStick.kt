@@ -4,7 +4,9 @@ import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.putColor4Bytes
 import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.render.CylinderRenderable
+import edu.duke.cs.molscope.render.RenderEffects
 import edu.duke.cs.molscope.render.SphereRenderable
+import edu.duke.cs.molscope.render.put
 import org.joml.AABBf
 import java.nio.ByteBuffer
 
@@ -18,8 +20,10 @@ class BallAndStick(
 ): RenderView {
 
 	// make a copy of the molecule and apply the selection
-	private val mol = molecule.copy()
-	private val sel = selector(mol)
+	override val mol = molecule.copy()
+	val sel = selector(mol)
+
+	override var renderEffects = RenderEffects(mol)
 
 	// copy all the bonds (in the selection) as a list
 	data class Bond(val i1: Int, val i2: Int)
@@ -46,6 +50,7 @@ class BallAndStick(
 	internal val sphereRenderable = object : SphereRenderable {
 
 		override val numVertices = sel.size
+		override val verticesSequence get() = renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
@@ -63,6 +68,7 @@ class BallAndStick(
 
 				// TODO: allow different indexing strategies (eg residue, molecule)
 				buf.putInt(atomIndex)
+				buf.put(renderEffects[atom])
 			}
 		}
 
@@ -85,6 +91,8 @@ class BallAndStick(
 	internal val cylinderRenderable = object : CylinderRenderable {
 
 		override val numVertices = sel.size
+		override val verticesSequence get() = renderEffects.sequence
+		override val indicesSequence get() = 0 // so far, indices never change
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 			sel.forEachIndexed { atomIndex, atom ->
@@ -99,6 +107,7 @@ class BallAndStick(
 
 				// TODO: allow different indexing strategies (eg residue, molecule)
 				buf.putInt(atomIndex)
+				buf.put(renderEffects[atom])
 			}
 		}
 

@@ -4,6 +4,7 @@ layout(location = 0) flat in vec3 inPosCamera;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out ivec2 outIndex;
+layout(location = 2) out uvec4 outEffects;
 layout(depth_less) out; // float gl_FragDepth
 
 layout(push_constant) uniform ViewIndex {
@@ -102,4 +103,5 @@ void main() {
 	}
 
 	outIndex = ivec2(-1, -1);
+	outEffects = uvec4(0, 0, 0, 0);
 }

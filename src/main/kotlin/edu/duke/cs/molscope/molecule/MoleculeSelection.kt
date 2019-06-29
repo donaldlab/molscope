@@ -20,4 +20,9 @@ object MoleculeSelectors {
 			emptyList()
 		}
 	}
+
+	fun atomsByName(name: String): MoleculeSelector = { mol ->
+		fun String.normalize() = toUpperCase()
+		mol.atoms.filter { it.name.normalize() == name.normalize() }
+	}
 }

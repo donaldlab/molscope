@@ -4,12 +4,14 @@ layout(location = 0) in vec3 inPosWorld;
 layout(location = 1) in float inRadiusWorld;
 layout(location = 2) in vec4 inColor;
 layout(location = 3) in int inIndex;
+layout(location = 4) in uvec4 inEffect;
 
 layout(location = 0) out vec3 outPosCamera;
 layout(location = 1) out float outRadiusCamera;
 layout(location = 2) out vec2 outRadiusClip;
 layout(location = 3) out vec4 outColor;
 layout(location = 4) out int outIndex;
+layout(location = 5) out uvec4 outEffect;
 
 #include "view.glsl"
 
@@ -34,4 +36,5 @@ void main() {
 	outRadiusClip = radiusClip;
 	outColor = inColor;
 	outIndex = inIndex;
+	outEffect = inEffect;
 }

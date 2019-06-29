@@ -13,9 +13,7 @@ import edu.duke.cs.molscope.render.SlideRenderer
 import edu.duke.cs.molscope.render.SphereRenderable
 import edu.duke.cs.molscope.render.ViewRenderables
 import edu.duke.cs.molscope.tools.IdentityChangeTracker
-import edu.duke.cs.molscope.view.BallAndStick
-import edu.duke.cs.molscope.view.ColorsMode
-import edu.duke.cs.molscope.view.SpaceFilling
+import edu.duke.cs.molscope.view.*
 import org.joml.Vector2f
 import kotlin.NoSuchElementException
 import kotlin.math.abs
@@ -90,9 +88,6 @@ internal class SlideWindow(
 				.autoClose(replace = it.imageDesc)
 		}
 	}
-
-	// TODO: allow configurable hover/selection mode?
-	var showHovers: Boolean = true
 
 	private val renderablesTracker = RenderablesTracker()
 	private val occlusionCalculator = OcclusionCalculator(queue).autoClose()
@@ -180,7 +175,12 @@ internal class SlideWindow(
 	}
 
 	private val commands = object : SlideCommands {
+
 		override val renderSettings get() = rendererInfoOrThrow.renderer.settings
+
+		override var hoverEffect: RenderEffect? = null
+		override var mouseTarget: ViewIndexed? = null
+		override var mouseLeftClick = false
 	}
 
 	fun gui(imgui: Commands) = imgui.run {
@@ -209,7 +209,7 @@ internal class SlideWindow(
 			return
 		}
 
-		// render the slide features
+		// render the slide feature menus
 		slide.lock { slide ->
 			if (beginMenuBar()) {
 
@@ -227,16 +227,6 @@ internal class SlideWindow(
 				}
 
 				endMenuBar()
-			}
-
-			if (rendererInfo != null) {
-
-				// render feature guis
-				for (features in slide.features.features.values) {
-					for (feature in features.values) {
-						feature.gui(this, slide, commands)
-					}
-				}
 			}
 		}
 
@@ -257,10 +247,25 @@ internal class SlideWindow(
 		setCursorPos(contentMin)
 		invisibleButton("button", rendererInfo.renderer.extent)
 
+		// what's the mouse looking at?
+		commands.mouseTarget =
+			if (rendererInfo.renderer.cursorIndices.isEmpty) {
+				null
+			} else {
+				slide.lock { slide ->
+					slide.views.getOrNull(rendererInfo.renderer.cursorIndices.view)?.let { view ->
+						view.getIndexed(rendererInfo.renderer.cursorIndices.target)?.let { target ->
+							ViewIndexed(view, target)
+						}
+					}
+				}
+			}
+
 		val isContextMenuOpen = isPopupOpen(ContextMenu.id)
 
 		// translate ImGUI mouse inputs into events
-		if (isItemClicked(0)) {
+		commands.mouseLeftClick = isItemClicked(0)
+		if (commands.mouseLeftClick) {
 			handleLeftDown(rendererInfo, getMouseOffset())
 		}
 		if (isItemActive() && Imgui.io.mouse.buttonDown[0]) {
@@ -275,15 +280,15 @@ internal class SlideWindow(
 			if (isItemHovered()) {
 
 				// handle mouse position
-				var hoverPos = this@SlideWindow.hoverPos
-				if (hoverPos == null) {
-					hoverPos = getMouseOffset()
-					handleEnter(rendererInfo)
-				} else {
-					getMouseOffset(hoverPos)
+				val isEnter = hoverPos == null
+				val pos = hoverPos ?: Vector2f()
+				getMouseOffset(pos)
+				hoverPos = pos
+
+				if (isEnter) {
+					handleEnter(rendererInfo, pos)
 				}
-				this@SlideWindow.hoverPos = hoverPos
-				handleHover(rendererInfo)
+				handleHover(rendererInfo, pos)
 
 				// handle mouse wheel
 				val wheelDelta = Imgui.io.mouse.wheel
@@ -294,9 +299,9 @@ internal class SlideWindow(
 			} else {
 
 				// handle mouse position
-				if (hoverPos != null) {
+				hoverPos?.let { oldPos ->
 					hoverPos = null
-					handleLeave(rendererInfo)
+					handleLeave(rendererInfo, oldPos)
 				}
 			}
 		}
@@ -312,6 +317,15 @@ internal class SlideWindow(
 		}
 
 		end()
+
+		// render the slide feature windows
+		slide.lock { slide ->
+			for (features in slide.features.features.values) {
+				for (feature in features.values) {
+					feature.gui(this, slide, commands)
+				}
+			}
+		}
 	}
 
 	private fun handleLeftDown(rendererInfo: RendererInfo, mousePos: Vector2f) {
@@ -357,46 +371,30 @@ internal class SlideWindow(
 
 	private fun makeContextMenu(rendererInfo: RendererInfo): ContextMenu {
 
-		// did we click on something?
-		rendererInfo.renderer.cursorIndex?.let { cursorIndex ->
+		val target = commands.mouseTarget ?: return ContextMenu.Close()
 
-			slide.lock { slide ->
-
-				// yup, what did we click on?
-				val target = slide.views[cursorIndex.viewIndex].getIndexed(cursorIndex.index)
-
-				// make a new context menu based on the target
-				return when (target) {
-					null -> ContextMenu.Close()
-					is Atom -> ContextMenu.AtomMenu(target)
-					else -> ContextMenu.StringMenu(target.toString())
-				}
-			}
+		// make a new context menu based on the target
+		return when (target.target) {
+			is Atom -> ContextMenu.AtomMenu(target.target)
+			else -> ContextMenu.StringMenu(target.target.toString())
 		}
-
-		// nope, kill the popup
-		return ContextMenu.Close()
 	}
 
-	private fun handleEnter(rendererInfo: RendererInfo) {
+	private fun handleEnter(rendererInfo: RendererInfo, pos: Vector2f) {
 		// nothing to do yet
 	}
 
-	private fun handleLeave(rendererInfo: RendererInfo) {
+	private fun handleLeave(rendererInfo: RendererInfo, oldPos: Vector2f) {
 
-		// turn off the hover effects if needed
+		// turn off the cursor
 		rendererInfo.renderer.cursorPos = null
 	}
 
-	private fun handleHover(rendererInfo: RendererInfo) {
+	private fun handleHover(rendererInfo: RendererInfo, pos: Vector2f) {
 
-		// pass the hover pos to the renderer to turn on hover effects, if needed
-		if (showHovers) {
-
-			hoverPos?.let {
-				rendererInfo.renderer.cursorPos = it.toOffset()
-			}
-		}
+		// update the cursor
+		rendererInfo.renderer.cursorPos = pos.toOffset()
+		rendererInfo.renderer.cursorEffect = commands.hoverEffect
 	}
 
 	private fun handleWheel(rendererInfo: RendererInfo, wheelDelta: Float) {
@@ -416,6 +414,9 @@ private enum class DragMode {
 	RotateXY,
 	RotateZ
 }
+
+
+class ViewIndexed(val view: RenderView, val target: Any)
 
 
 private sealed class ContextMenu {
@@ -438,11 +439,14 @@ private sealed class ContextMenu {
 			text("Atom: ${atom.name}")
 			text("\tat (%.3f,%.3f,%.3f)".format(atom.pos.x, atom.pos.y, atom.pos.y))
 
+			// TEMP
 			if (button("Center")) {
 				closeCurrentPopup()
 				// TODO: add translation animations
 				renderer.camera.lookAt(atom.pos.toFloat())
 			}
+
+			// TODO: allow GUI stuff from slide features?
 		}
 	}
 

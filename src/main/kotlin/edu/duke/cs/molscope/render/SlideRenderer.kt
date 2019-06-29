@@ -30,8 +30,8 @@ internal class SlideRenderer(
 	val rect = Rect2D(Offset2D(0, 0), extent)
 
 	var cursorPos: Offset2D? = null
-	var cursorIndex: CursorIndex? = null
-		private set
+	val cursorIndices = Indices()
+	var cursorEffect: RenderEffect? = null
 
 	// get the old settings (and mark them dirty) or make new settings
 	val settings: RenderSettings = oldRenderer
@@ -63,6 +63,13 @@ internal class SlideRenderer(
 			storeOp =  StoreOp.Store,
 			finalLayout = Image.Layout.ShaderReadOnlyOptimal
 		)
+	val effectsAttachment =
+		Attachment(
+			format = Image.Format.R8G8B8A8_UINT,
+			loadOp = LoadOp.Clear,
+			storeOp = StoreOp.Store,
+			finalLayout = Image.Layout.ShaderReadOnlyOptimal
+		)
 	val depthAttachment =
 		Attachment(
 			format = Image.Format.D32_SFLOAT,
@@ -75,13 +82,14 @@ internal class SlideRenderer(
 			pipelineBindPoint = PipelineBindPoint.Graphics,
 			colorAttachments = listOf(
 				colorAttachment to Image.Layout.ColorAttachmentOptimal,
-				indexAttachment to Image.Layout.ColorAttachmentOptimal
+				indexAttachment to Image.Layout.ColorAttachmentOptimal,
+				effectsAttachment to Image.Layout.ColorAttachmentOptimal
 			),
 			depthStencilAttachment = depthAttachment to Image.Layout.DepthStencilAttachmentOptimal
 		)
 	val renderPass = device
 		.renderPass(
-			attachments = listOf(colorAttachment, indexAttachment, depthAttachment),
+			attachments = listOf(colorAttachment, indexAttachment, effectsAttachment, depthAttachment),
 			subpasses = listOf(subpass),
 			subpassDependencies = listOf(
 				SubpassDependency(
@@ -146,6 +154,18 @@ internal class SlideRenderer(
 		.autoClose()
 	val indexView = indexImage.image.view().autoClose()
 
+	val effectsImage = device
+		.image(
+			Image.Type.TwoD,
+			extent.to3D(1),
+			effectsAttachment.format,
+			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Storage, Image.Usage.InputAttachment)
+		)
+		.autoClose()
+		.allocateDevice()
+		.autoClose()
+	val effectsView = effectsImage.image.view().autoClose()
+
 	val postImage = device
 		.image(
 			Image.Type.TwoD,
@@ -180,7 +200,7 @@ internal class SlideRenderer(
 	val framebuffer = device
 		.framebuffer(
 			renderPass,
-			imageViews = listOf(colorView, indexView, depthView),
+			imageViews = listOf(colorView, indexView, effectsView, depthView),
 			extent = extent
 		)
 		.autoClose()
@@ -213,7 +233,7 @@ internal class SlideRenderer(
 		sizes = DescriptorType.Counts(
 			DescriptorType.UniformBuffer to 3,
 			DescriptorType.StorageBuffer to 2,
-			DescriptorType.StorageImage to 3,
+			DescriptorType.StorageImage to 4,
 			DescriptorType.CombinedImageSampler to 1
 		)
 	).autoClose()
@@ -267,8 +287,13 @@ internal class SlideRenderer(
 		type = DescriptorType.StorageImage,
 		stages = IntFlags.of(ShaderStage.Fragment)
 	)
+	val effectsImageBinding = DescriptorSetLayout.Binding(
+		binding = 3,
+		type = DescriptorType.StorageImage,
+		stages = IntFlags.of(ShaderStage.Compute, ShaderStage.Fragment)
+	)
 	val postDescriptorSetLayout = device.descriptorSetLayout(listOf(
-		cursorBufBinding, colorImageBinding, indexImageBinding
+		cursorBufBinding, colorImageBinding, indexImageBinding, effectsImageBinding
 	)).autoClose()
 	val postDescriptorSet = descriptorPool.allocate(postDescriptorSetLayout)
 
@@ -294,7 +319,7 @@ internal class SlideRenderer(
 	// allocate the cursor buffer on the device
 	val cursorBufDevice = device
 		.buffer(
-			size = Int.SIZE_BYTES*6L,
+			size = Int.SIZE_BYTES*12L,
 			usage = IntFlags.of(Buffer.Usage.StorageBuffer, Buffer.Usage.TransferDst, Buffer.Usage.TransferSrc)
 		)
 		.autoClose()
@@ -336,6 +361,9 @@ internal class SlideRenderer(
 				),
 				postDescriptorSet.address(indexImageBinding).write(
 					DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
+				),
+				postDescriptorSet.address(effectsImageBinding).write(
+					DescriptorSet.ImageInfo(null, effectsView, Image.Layout.General)
 				)
 			)
 		)
@@ -389,6 +417,18 @@ internal class SlideRenderer(
 
 			// always overwrite the dest (framebuf) values
 			indexAttachment to ColorBlendState.Attachment(
+				color = ColorBlendState.Attachment.Part(
+					src = BlendFactor.One,
+					dst = BlendFactor.Zero,
+					op = BlendOp.Add
+				),
+				alpha = ColorBlendState.Attachment.Part(
+					src = BlendFactor.One,
+					dst = BlendFactor.Zero,
+					op = BlendOp.Add
+				)
+			),
+			effectsAttachment to ColorBlendState.Attachment(
 				color = ColorBlendState.Attachment.Part(
 					src = BlendFactor.One,
 					dst = BlendFactor.Zero,
@@ -481,17 +521,34 @@ internal class SlideRenderer(
 
 		// update the hover buffer
 		cursorBufHost.memory.map { buf ->
+
+			// update the pos
 			val cursorPos = cursorPos
 			if (cursorPos != null) {
 				buf.putInt(1)
-				buf.skip(4)
+				buf.skip(Int.SIZE_BYTES*3)
 				buf.putInt(cursorPos.x)
 				buf.putInt(cursorPos.y)
-				buf.putInt(-1)
-				buf.putInt(-1)
 			} else {
 				buf.putInt(0)
+				buf.skip(Int.SIZE_BYTES*5)
 			}
+
+			// skip the indices (the GPU writes those, the CPU just reads them)
+			buf.skip(Int.SIZE_BYTES*2)
+
+			// update the cursor effect
+			val cursorEffect = cursorEffect
+			if (cursorEffect != null) {
+				// need to expand bytes to ints for the cursor buffer
+				buf.putInt(cursorEffect.r.toInt())
+				buf.putInt(cursorEffect.g.toInt())
+				buf.putInt(cursorEffect.b.toInt())
+				buf.putInt(cursorEffect.flags.value.toInt())
+			} else {
+				buf.skip(Int.SIZE_BYTES*4)
+			}
+
 			buf.flip()
 		}
 
@@ -543,7 +600,8 @@ internal class SlideRenderer(
 				rect,
 				clearValues = mapOf(
 					colorAttachment to backgroundColor.toClearColor(),
-					indexAttachment to ClearValue.Color.Int(-1, -1, -1, -1), // -1 as int
+					indexAttachment to Indices.clearColor,
+					effectsAttachment to RenderEffect.clearColor,
 					depthAttachment to ClearValue.DepthStencil(depth = 1f)
 				)
 			)
@@ -574,11 +632,15 @@ internal class SlideRenderer(
 					indexImage.image.barrier(
 						dstAccess = IntFlags.of(Access.ShaderRead),
 						newLayout = Image.Layout.General
+					),
+					effectsImage.image.barrier(
+						dstAccess = IntFlags.of(Access.ShaderRead),
+						newLayout = Image.Layout.General
 					)
 				)
 			)
 
-			cursorPos?.let { cursorPos ->
+			if (cursorPos != null) {
 
 				// figure out what was under the cursor
 				pipelineBarrier(
@@ -636,7 +698,7 @@ internal class SlideRenderer(
 				}
 		)
 
-		// read the cursor index, if any
+		// read the cursor indices, if any
 		if (cursorPos != null) {
 
 			// TODO: is there a more efficient wait mechanism here?
@@ -644,21 +706,43 @@ internal class SlideRenderer(
 			queue.waitForIdle()
 
 			cursorBufHost.memory.map { buf ->
-
-				buf.position(Int.SIZE_BYTES*4)
-				val index = buf.int
-				val viewIndex = buf.int
-
-				cursorIndex = CursorIndex(viewIndex, index)
+				buf.position = 24
+				buf.getIndices(cursorIndices)
 			}
 
 		} else {
-			cursorIndex = null
+			cursorIndices.clear()
 		}
 	}
 }
 
-data class CursorIndex(val viewIndex: Int, val index: Int)
+data class Indices(var target: Int, var view: Int) {
+
+	companion object {
+		const val noTarget = -1
+		const val noView = -1
+		val clearColor = ClearValue.Color.Int(noTarget, noView, 0, 0)
+	}
+
+	constructor() : this(noTarget, noView)
+
+	fun clear() {
+		target = noTarget
+		view = noView
+	}
+
+	val isEmpty get() = target == noTarget && view == noView
+}
+
+fun ByteBuffer.put(indices: Indices) {
+	putInt(indices.target)
+	putInt(indices.view)
+}
+
+fun ByteBuffer.getIndices(indices: Indices) {
+	indices.target = int
+	indices.view = int
+}
 
 
 internal data class ViewRenderables(

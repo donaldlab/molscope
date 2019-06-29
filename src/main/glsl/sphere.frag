@@ -4,9 +4,11 @@ layout(location = 0) flat in vec3 inPosCamera;
 layout(location = 1) flat in float inRadiusCamera;
 layout(location = 2) flat in vec4 inColor;
 layout(location = 3) flat in int inIndex;
+layout(location = 4) flat in uvec4 inEffect;
 
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out ivec2 outIndex;
+layout(location = 1) out ivec2 outIndices;
+layout(location = 2) out uvec4 outEffect;
 layout(depth_less) out; // float gl_FragDepth
 
 layout(push_constant) uniform ViewIndex {
@@ -40,14 +42,16 @@ void main() {
 		vec3 normal = normalize(posPixelCamera - inPosCamera);
 
 		outColor = light(inColor, posPixelCamera, normal);
-		outIndex = ivec2(inIndex, inViewIndex);
+		outIndices = ivec2(inIndex, inViewIndex);
+		outEffect = inEffect;
 		gl_FragDepth = cameraZToClip(posPixelCamera.z);
 
 	} else {
 
 		// pixel is outside the sphere
 		outColor = vec4(0);
-		outIndex = ivec2(-1, -1);
+		outIndices = ivec2(-1, -1);
+		outEffect = ivec4(0, 0, 0, 0);
 		gl_FragDepth = 1;
 	}
 }

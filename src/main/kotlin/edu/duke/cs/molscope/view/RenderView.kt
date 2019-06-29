@@ -1,5 +1,7 @@
 package edu.duke.cs.molscope.view
 
+import edu.duke.cs.molscope.molecule.Molecule
+import edu.duke.cs.molscope.render.RenderEffects
 import org.joml.AABBf
 
 
@@ -11,6 +13,8 @@ import org.joml.AABBf
  */
 interface RenderView {
 
+	val mol: Molecule
 	fun calcBoundingBox(): AABBf
 	fun getIndexed(index: Int): Any? = null
+	val renderEffects: RenderEffects
 }

@@ -4,8 +4,8 @@ import cuchaz.kludge.imgui.Commands
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.HasFeatureId
+import edu.duke.cs.molscope.render.RenderEffect
 import edu.duke.cs.molscope.render.RenderSettings
-import edu.duke.cs.molscope.render.SlideRenderer
 
 
 abstract class SlideFeature(
@@ -38,4 +38,8 @@ abstract class SlideFeature(
 
 interface SlideCommands {
 	val renderSettings: RenderSettings
+	// TODO: click/hover on other things? eg residues, molecules
+	var hoverEffect: RenderEffect?
+	val mouseTarget: ViewIndexed?
+	val mouseLeftClick: Boolean
 }
