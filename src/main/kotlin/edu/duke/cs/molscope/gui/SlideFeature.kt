@@ -34,11 +34,20 @@ abstract class SlideFeature(
 	open fun gui(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) {
 		// do nothing by default
 	}
+
+	/**
+	 * Renders the context menu GUI of your feature.
+	 *
+	 * Called from the window thread, not the creating thread,
+	 * so be careful about synchronization of shared memory.
+	 */
+	open fun contextMenu(contextMenu: ContextMenu, slide: Slide.Locked, slidewin: SlideCommands, target: ViewIndexed) {
+		// do nothing by default
+	}
 }
 
 interface SlideCommands {
 	val renderSettings: RenderSettings
-	// TODO: click/hover on other things? eg residues, molecules
 	var hoverEffect: RenderEffect?
 	val mouseTarget: ViewIndexed?
 	val mouseLeftClick: Boolean

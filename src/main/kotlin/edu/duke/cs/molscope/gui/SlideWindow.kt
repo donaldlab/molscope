@@ -6,7 +6,6 @@ import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.Slide
-import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.render.*
 import edu.duke.cs.molscope.render.OcclusionCalculator
 import edu.duke.cs.molscope.render.SlideRenderer
@@ -308,11 +307,26 @@ internal class SlideWindow(
 		if (beginPopupContextItem(ContextMenu.id)) {
 
 			if (contextMenu == null) {
-				contextMenu = makeContextMenu(rendererInfo)
+				val contextMenu = ContextMenu()
+
+				// did we click on anything?
+				commands.mouseTarget?.let { target ->
+
+					// add slide features to the menu
+					slide.lock { slide ->
+						for (features in slide.features.features.values) {
+							for (feature in features.values) {
+								feature.contextMenu(contextMenu, slide, commands, target)
+							}
+						}
+					}
+				}
+
+				this@SlideWindow.contextMenu = contextMenu
 			}
 
 			// render the context menu if we have one
-			contextMenu?.render(rendererInfo.renderer, imgui)
+			contextMenu?.render(imgui)
 			endPopup()
 		}
 
@@ -369,17 +383,6 @@ internal class SlideWindow(
 		}
 	}
 
-	private fun makeContextMenu(rendererInfo: RendererInfo): ContextMenu {
-
-		val target = commands.mouseTarget ?: return ContextMenu.Close()
-
-		// make a new context menu based on the target
-		return when (target.target) {
-			is Atom -> ContextMenu.AtomMenu(target.target)
-			else -> ContextMenu.StringMenu(target.target.toString())
-		}
-	}
-
 	private fun handleEnter(rendererInfo: RendererInfo, pos: Vector2f) {
 		// nothing to do yet
 	}
@@ -419,42 +422,44 @@ private enum class DragMode {
 class ViewIndexed(val view: RenderView, val target: Any)
 
 
-private sealed class ContextMenu {
+class ContextMenu {
 
-	abstract fun render(renderer: SlideRenderer, imgui: Commands)
+	private val features = ArrayList<Commands.() -> Unit>()
+
+	fun add(block: Commands.() -> Unit) {
+		features.add(block)
+	}
+
+	fun render(imgui: Commands) = imgui.run {
+
+		if (features.isEmpty()) {
+
+			// no features, close the popup
+			closeCurrentPopup()
+		}
+
+		for (feature in features) {
+			feature()
+		}
+	}
 
 	companion object {
 		const val id = "contextMenu"
 	}
 
-	class Close: ContextMenu() {
-		override fun render(renderer: SlideRenderer, imgui: Commands) = imgui.run {
+	/* TODO: move into navigation/camera feature?
+	fun foo() {
+		text("Atom: ${atom.name}")
+		text("\tat (%.3f,%.3f,%.3f)".format(atom.pos.x, atom.pos.y, atom.pos.y))
+
+		// TEMP
+		if (button("Center")) {
 			closeCurrentPopup()
+			// TODO: add translation animations
+			renderer.camera.lookAt(atom.pos.toFloat())
 		}
 	}
-
-	class AtomMenu(val atom: Atom): ContextMenu() {
-		override fun render(renderer: SlideRenderer, imgui: Commands) = imgui.run {
-
-			text("Atom: ${atom.name}")
-			text("\tat (%.3f,%.3f,%.3f)".format(atom.pos.x, atom.pos.y, atom.pos.y))
-
-			// TEMP
-			if (button("Center")) {
-				closeCurrentPopup()
-				// TODO: add translation animations
-				renderer.camera.lookAt(atom.pos.toFloat())
-			}
-
-			// TODO: allow GUI stuff from slide features?
-		}
-	}
-
-	class StringMenu(val msg: String): ContextMenu() {
-		override fun render(renderer: SlideRenderer, imgui: Commands) = imgui.run {
-			text(msg)
-		}
-	}
+	*/
 }
 
 
