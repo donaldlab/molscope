@@ -41,7 +41,7 @@ fun ByteBuffer.put(effect: RenderEffect?) {
 	}
 }
 
-class RenderEffects(val mol: Molecule) {
+class MoleculeRenderEffects(val mol: Molecule) {
 
 	private val effectsByAtom = HashMap<Atom,RenderEffect>()
 

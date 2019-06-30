@@ -4,7 +4,7 @@ import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.putColor4Bytes
 import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.render.CylinderRenderable
-import edu.duke.cs.molscope.render.RenderEffects
+import edu.duke.cs.molscope.render.MoleculeRenderEffects
 import edu.duke.cs.molscope.render.SphereRenderable
 import edu.duke.cs.molscope.render.put
 import org.joml.AABBf
@@ -15,19 +15,28 @@ import java.nio.ByteBuffer
  * views a molecule using the ball and stick convention
  */
 class BallAndStick(
-	molecule: Molecule,
-	selector: MoleculeSelector = MoleculeSelectors.all
-): RenderView {
+	override val mol: Molecule,
+	val selector: MoleculeSelector = MoleculeSelectors.all
+): MoleculeRenderView {
 
-	// make a copy of the molecule and apply the selection
-	override val mol = molecule.copy()
-	val sel = selector(mol)
+	var sel = selector(mol)
+		private set
 
-	override var renderEffects = RenderEffects(mol)
+	private var molSequence = 0
+	override fun moleculeChanged() {
+		sel = selector(mol)
+		updateBonds()
+		molSequence += 1
+	}
+
+	override var renderEffects = MoleculeRenderEffects(mol)
 
 	// copy all the bonds (in the selection) as a list
 	data class Bond(val i1: Int, val i2: Int)
-	private val bonds = HashSet<Bond>().apply {
+	private val bonds = HashSet<Bond>()
+
+	private fun updateBonds() {
+		bonds.clear()
 		sel.forEachIndexed { i1, a1 ->
 			for (a2 in mol.bonds.bondedAtoms(a1)) {
 				val i2 = sel.indexOf(a2)
@@ -36,7 +45,7 @@ class BallAndStick(
 				}
 
 				// sort the indices to normalize the bond
-				add(if (i1 < i2) {
+				bonds.add(if (i1 < i2) {
 					Bond(i1, i2)
 				} else {
 					Bond(i2, i1)
@@ -49,8 +58,8 @@ class BallAndStick(
 	// render the atoms as spheres
 	internal val sphereRenderable = object : SphereRenderable {
 
-		override val numVertices = sel.size
-		override val verticesSequence get() = renderEffects.sequence
+		override val numVertices get() = sel.size
+		override val verticesSequence get() = molSequence + renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
@@ -90,9 +99,9 @@ class BallAndStick(
 	// render the bonds as cylinders
 	internal val cylinderRenderable = object : CylinderRenderable {
 
-		override val numVertices = sel.size
-		override val verticesSequence get() = renderEffects.sequence
-		override val indicesSequence get() = 0 // so far, indices never change
+		override val numVertices get() = sel.size
+		override val verticesSequence get() = molSequence + renderEffects.sequence
+		override val indicesSequence get() = molSequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 			sel.forEachIndexed { atomIndex, atom ->
@@ -111,7 +120,7 @@ class BallAndStick(
 			}
 		}
 
-		override val numIndices = bonds.size*2
+		override val numIndices get() = bonds.size*2
 
 		override fun fillIndexBuffer(buf: ByteBuffer) {
 			for (bond in bonds) {

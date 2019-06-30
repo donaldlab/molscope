@@ -17,21 +17,23 @@ internal class CylinderRenderer(
 ): AutoCloseable {
 
 	private val closer = AutoCloser()
-	private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
+	private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = apply { closer.add(this, replace) }
 	private fun <R> R.autoClose(block: R.() -> Unit): R = apply { closer.add { block() } }
 	override fun close() = closer.close()
+
+	private val device get() = slideRenderer.device
 
 	// make the graphics pipeline
 	val graphicsPipeline = slideRenderer
 		.graphicsPipeline(
 			listOf(
-				slideRenderer.device.shaderModule(Shaders["cylinder.vert"])
+				device.shaderModule(Shaders["cylinder.vert"])
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				slideRenderer.device.shaderModule(Shaders["cylinder.geom"])
+				device.shaderModule(Shaders["cylinder.geom"])
 					.autoClose()
 					.stage("main", ShaderStage.Geometry),
-				slideRenderer.device.shaderModule(Shaders["cylinder.frag"])
+				device.shaderModule(Shaders["cylinder.frag"])
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),
@@ -76,31 +78,43 @@ internal class CylinderRenderer(
 	inner class Entry(val src: CylinderRenderable): AutoCloseable {
 
 		private val closer = AutoCloser()
-		private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
+		private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = apply { closer.add(this, replace) }
 		override fun close() = closer.close()
 
 		// Vulkan won't allow 0-sized buffers, so use at least one byte
 		private fun bufSize(size: Long) = max(1L, size)
 
-		// allocate the vertex buffer on the GPU
-		val vertexBuf = slideRenderer.device
-			.buffer(
-				size = bufSize(src.numVertices*graphicsPipeline.vertexInput.size),
-				usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
-			)
-			.autoClose()
-			.allocateDevice()
-			.autoClose()
+		inner class VBO(val numVertices: Int) : AutoCloseable {
 
-		// allocate the index buffer on the GPU
-		val indexBuf = slideRenderer.device
-			.buffer(
-				size = bufSize(src.numIndices*Int.SIZE_BYTES.toLong()),
-				usage = IntFlags.of(Buffer.Usage.IndexBuffer, Buffer.Usage.TransferDst)
-			)
-			.autoClose()
-			.allocateDevice()
-			.autoClose()
+			val buf = device
+				.buffer(
+					size = bufSize(numVertices*graphicsPipeline.vertexInput.size),
+					usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
+				)
+			val allocated = buf.allocateDevice()
+
+			override fun close() {
+				buf.close()
+				allocated.close()
+			}
+		}
+		var vertexBuf = VBO(src.numVertices).autoClose()
+
+		inner class IBO(val numIndices: Int) : AutoCloseable {
+
+			val buf = device
+				.buffer(
+					size = bufSize(numIndices*graphicsPipeline.vertexInput.size),
+					usage = IntFlags.of(Buffer.Usage.IndexBuffer, Buffer.Usage.TransferDst)
+				)
+			val allocated = buf.allocateDevice()
+
+			override fun close() {
+				buf.close()
+				allocated.close()
+			}
+		}
+		var indexBuf = IBO(src.numIndices).autoClose()
 
 		private val dirtyness = Dirtyness()
 
@@ -112,12 +126,20 @@ internal class CylinderRenderer(
 				return
 			}
 
+			// reallocate buffers if needed
+			if (vertexBuf.numVertices < src.numVertices) {
+				vertexBuf = VBO(src.numVertices).autoClose(replace = vertexBuf)
+			}
+			if (indexBuf.numIndices < src.numIndices) {
+				indexBuf = IBO(src.numIndices).autoClose(replace = indexBuf)
+			}
+
 			// update buffers
-			vertexBuf.transferHtoD { buf ->
+			vertexBuf.allocated.transferHtoD { buf ->
 				src.fillVertexBuffer(buf, colorsMode)
 				buf.flip()
 			}
-			indexBuf.transferHtoD { buf ->
+			indexBuf.allocated.transferHtoD { buf ->
 				src.fillIndexBuffer(buf)
 				buf.flip()
 			}
@@ -161,8 +183,8 @@ internal class CylinderRenderer(
 			// draw geometry
 			bindPipeline(graphicsPipeline)
 			bindDescriptorSet(slideRenderer.mainDescriptorSet, graphicsPipeline)
-			bindVertexBuffer(entry.vertexBuf.buffer)
-			bindIndexBuffer(entry.indexBuf.buffer, CommandBuffer.IndexType.UInt32)
+			bindVertexBuffer(entry.vertexBuf.buf)
+			bindIndexBuffer(entry.indexBuf.buf, CommandBuffer.IndexType.UInt32)
 			pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment),
 				viewIndex, 0, 0, 0
 			)

@@ -17,7 +17,7 @@ internal class SphereRenderer(
 ): AutoCloseable {
 
 	private val closer = AutoCloser()
-	private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
+	private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = apply { closer.add(this, replace) }
 	private fun <R> R.autoClose(block: R.() -> Unit): R = apply { closer.add { block() } }
 	override fun close() = closer.close()
 	
@@ -78,21 +78,27 @@ internal class SphereRenderer(
 	inner class Entry(val src: SphereRenderable): AutoCloseable {
 
 		private val closer = AutoCloser()
-		private fun <R:AutoCloseable> R.autoClose() = apply { closer.add(this) }
+		private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = apply { closer.add(this, replace) }
 		override fun close() = closer.close()
 
 		// Vulkan won't allow 0-sized buffers, so use at least one byte
 		private fun bufSize(size: Long) = max(1L, size)
 
-		// allocate the vertex buffer on the GPU
-		val vertexBuf = device
-			.buffer(
-				size = bufSize(src.numVertices*graphicsPipeline.vertexInput.size),
-				usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
-			)
-			.autoClose()
-			.allocateDevice()
-			.autoClose()
+		inner class VBO(val numVertices: Int) : AutoCloseable {
+
+			val buf = device
+				.buffer(
+					size = bufSize(numVertices*graphicsPipeline.vertexInput.size),
+					usage = IntFlags.of(Buffer.Usage.VertexBuffer, Buffer.Usage.TransferDst)
+				)
+			val allocated = buf.allocateDevice()
+
+			override fun close() {
+				buf.close()
+				allocated.close()
+			}
+		}
+		var vertexBuf = VBO(src.numVertices).autoClose()
 		
 		private val dirtyness = Dirtyness()
 
@@ -104,8 +110,13 @@ internal class SphereRenderer(
 				return
 			}
 
+			// reallocate buffers if needed
+			if (vertexBuf.numVertices < src.numVertices) {
+				vertexBuf = VBO(src.numVertices).autoClose(replace = vertexBuf)
+			}
+
 			// update buffers
-			vertexBuf.transferHtoD { buf ->
+			vertexBuf.allocated.transferHtoD { buf ->
 				src.fillVertexBuffer(buf, colorsMode)
 				buf.flip()
 			}
@@ -149,7 +160,7 @@ internal class SphereRenderer(
 			// draw geometry
 			bindPipeline(graphicsPipeline)
 			bindDescriptorSet(slideRenderer.mainDescriptorSet, graphicsPipeline)
-			bindVertexBuffer(entry.vertexBuf.buffer)
+			bindVertexBuffer(entry.vertexBuf.buf)
 			pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment),
 				viewIndex, 0, 0, 0
 			)

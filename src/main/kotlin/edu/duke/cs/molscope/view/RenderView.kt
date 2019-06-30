@@ -1,20 +1,24 @@
 package edu.duke.cs.molscope.view
 
 import edu.duke.cs.molscope.molecule.Molecule
-import edu.duke.cs.molscope.render.RenderEffects
+import edu.duke.cs.molscope.render.MoleculeRenderEffects
 import org.joml.AABBf
 
 
 /**
- * Represents a static view of a Thing (eg a molecule) at a point in time.
- *
- * Once constructed, the view is independent of the Thing.
- * If the Thing changes, the view should remain the same.
+ * Represents a renderable view of a Thing.
  */
 interface RenderView {
-
-	val mol: Molecule
 	fun calcBoundingBox(): AABBf
 	fun getIndexed(index: Int): Any? = null
-	val renderEffects: RenderEffects
+}
+
+
+/**
+ * Represents a renderable view of a Molecule.
+ */
+interface MoleculeRenderView : RenderView {
+	val mol: Molecule
+	fun moleculeChanged()
+	val renderEffects: MoleculeRenderEffects
 }

@@ -89,6 +89,10 @@ open class Molecule(val name: String) {
 
 		fun isBonded(a1: Atom, a2: Atom) =
 			a1 in bondedAtoms(a2)
+
+		fun clear() {
+			adjacency.values.forEach { it.clear() }
+		}
 	}
 	val bonds = Bonds()
 }

@@ -3,7 +3,7 @@ package edu.duke.cs.molscope.view
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.putColor4Bytes
 import edu.duke.cs.molscope.molecule.*
-import edu.duke.cs.molscope.render.RenderEffects
+import edu.duke.cs.molscope.render.MoleculeRenderEffects
 import edu.duke.cs.molscope.render.SphereRenderable
 import edu.duke.cs.molscope.render.put
 import org.joml.AABBf
@@ -15,21 +15,26 @@ import java.nio.ByteBuffer
  */
 // TODO: optimize molecule transformations so we don't have to re-create the whole view for a large molecule?
 class SpaceFilling(
-	molecule: Molecule,
-	selector: MoleculeSelector = MoleculeSelectors.all
-): RenderView {
+	override val mol: Molecule,
+	val selector: MoleculeSelector = MoleculeSelectors.all
+): MoleculeRenderView {
 
-	// make a copy of the molecule and apply the selection
-	override val mol = molecule.copy()
-	val sel = selector(mol)
+	var sel = selector(mol)
+		private set
 
-	override var renderEffects = RenderEffects(mol)
+	private var molSequence = 0
+	override fun moleculeChanged() {
+		sel = selector(mol)
+		molSequence += 1
+	}
+
+	override var renderEffects = MoleculeRenderEffects(mol)
 
 	internal val sphereRenderable = object : SphereRenderable {
 		
-		override val numVertices = sel.size
-		override val verticesSequence get() = renderEffects.sequence
-		
+		override val numVertices get() = sel.size
+		override val verticesSequence get() = molSequence + renderEffects.sequence
+
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
 			sel.forEachIndexed { atomIndex, atom ->
