@@ -41,6 +41,7 @@ interface SlideFeature : HasFeatureId {
 }
 
 interface SlideCommands {
+	fun showExceptions(block: () -> Unit)
 	val renderSettings: RenderSettings
 	var hoverEffect: RenderEffect?
 	val mouseTarget: ViewIndexed?

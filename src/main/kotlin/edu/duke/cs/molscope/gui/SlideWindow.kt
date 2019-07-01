@@ -21,7 +21,8 @@ import kotlin.math.atan2
 
 internal class SlideWindow(
 	val slide: Slide,
-	val queue: Queue
+	val queue: Queue,
+	val exceptionViewer: ExceptionViewer
 ): AutoCloseable {
 
 	private val closer = AutoCloser()
@@ -174,6 +175,14 @@ internal class SlideWindow(
 	}
 
 	private val commands = object : SlideCommands {
+
+		override fun showExceptions(block: () -> Unit) {
+			try {
+				block()
+			} catch (t: Throwable) {
+				exceptionViewer.add(t)
+			}
+		}
 
 		override val renderSettings get() = rendererInfoOrThrow.renderer.settings
 

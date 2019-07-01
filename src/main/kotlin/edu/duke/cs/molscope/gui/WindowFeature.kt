@@ -1,6 +1,7 @@
 package edu.duke.cs.molscope.gui
 
 import cuchaz.kludge.imgui.Commands
+import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.features.HasFeatureId
 
 
@@ -33,5 +34,8 @@ interface WindowFeature : HasFeatureId {
  * Should only access this from the window thread.
  */
 interface WindowCommands {
+	fun showExceptions(block: () -> Unit)
 	var shouldClose: Boolean
+	fun addSlide(slide: Slide)
+	fun removeSlide(slide: Slide): Boolean
 }

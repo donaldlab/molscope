@@ -80,22 +80,13 @@ class Window(
 
 	inner class Slides {
 
-		private val slides = ArrayList<Slide>()
-
 		fun add(slide: Slide) {
-
-			slides.add(slide)
-
-			// also update the renderer
 			sync {
 				addSlide(slide)
 			}
 		}
 
 		fun remove(slide: Slide) {
-
-			slides.remove(slide)
-
 			sync {
 				removeSlide(slide)
 			}
@@ -224,7 +215,7 @@ internal class WindowThread(
 
 	fun addSlide(slide: Slide) {
 		if (!slideWindows.containsKey(slide)) {
-			slideWindows[slide] = SlideWindow(slide, graphicsQueue)
+			slideWindows[slide] = SlideWindow(slide, graphicsQueue, exceptionViewer)
 		}
 	}
 
@@ -245,11 +236,24 @@ internal class WindowThread(
 		}
 	}
 
+	private val exceptionViewer = ExceptionViewer()
+
 	private val winCommands = object : WindowCommands {
+
+		override fun showExceptions(block: () -> Unit) {
+			try {
+				block()
+			} catch (t: Throwable) {
+				exceptionViewer.add(t)
+			}
+		}
 
 		override var shouldClose: Boolean
 			get() = win.shouldClose
 			set(value) { win.shouldClose = value }
+
+		override fun addSlide(slide: Slide) = this@WindowThread.addSlide(slide)
+		override fun removeSlide(slide: Slide): Boolean = this@WindowThread.removeSlide(slide)
 	}
 
 
@@ -303,6 +307,9 @@ internal class WindowThread(
 						for (slidewin in slideWindows.values) {
 							slidewin.gui(this)
 						}
+
+						// render exceptions
+						exceptionViewer.gui(this)
 					}
 				} catch (ex: SwapchainOutOfDateException) {
 
