@@ -54,6 +54,11 @@ class BallAndStick(
 		}
 	}
 
+	// initialize the bonds
+	init {
+		updateBonds()
+	}
+
 
 	// render the atoms as spheres
 	internal val sphereRenderable = object : SphereRenderable {
