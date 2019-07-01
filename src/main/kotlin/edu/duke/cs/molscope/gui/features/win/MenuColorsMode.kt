@@ -8,13 +8,9 @@ import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.view.ColorsMode
 
 
-class ViewColors : WindowFeature(menu, name) {
+class MenuColorsMode : WindowFeature {
 
-	companion object {
-		const val menu = "View"
-		const val name = "Colors"
-		val id = FeatureId(menu, name)
-	}
+	override val id = FeatureId("colorsmode")
 
 	override fun menu(imgui: Commands, win: WindowCommands) = imgui.run {
 		if (beginMenu("Colors")) {

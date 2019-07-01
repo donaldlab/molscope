@@ -215,9 +215,9 @@ internal class SlideWindow(
 				if (rendererInfo != null) {
 
 					// render feature menus
-					for ((menu, features) in slide.features.features) {
-						if (beginMenu(menu.capitalize())) {
-							for (feature in features.values) {
+					for (menu in slide.features.menus) {
+						if (beginMenu(menu.name)) {
+							for (feature in menu.features) {
 								feature.menu(this, slide, commands)
 							}
 							endMenu()
@@ -314,8 +314,8 @@ internal class SlideWindow(
 
 					// add slide features to the menu
 					slide.lock { slide ->
-						for (features in slide.features.features.values) {
-							for (feature in features.values) {
+						for (menu in slide.features.menus) {
+							for (feature in menu.features) {
 								feature.contextMenu(contextMenu, slide, commands, target)
 							}
 						}
@@ -334,8 +334,8 @@ internal class SlideWindow(
 
 		// render the slide feature windows
 		slide.lock { slide ->
-			for (features in slide.features.features.values) {
-				for (feature in features.values) {
+			for (menu in slide.features.menus) {
+				for (feature in menu.features) {
 					feature.gui(this, slide, commands)
 				}
 			}

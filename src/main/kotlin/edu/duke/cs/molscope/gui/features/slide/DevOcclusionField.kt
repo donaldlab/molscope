@@ -8,19 +8,15 @@ import edu.duke.cs.molscope.gui.SlideFeature
 import edu.duke.cs.molscope.gui.features.FeatureId
 
 
-class DevOcclusionField : SlideFeature(menu, name) {
+class DevOcclusionField : SlideFeature {
 
-	companion object {
-		const val menu = "Dev"
-		const val name = "Show Occlusion Field"
-		val id = FeatureId(menu, name)
-	}
+	override val id = FeatureId("dev.occlusionfield")
 
 	val pOn = Ref.of(false)
 
 	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
 		pOn.value = slidewin.renderSettings.showOcclusionField
-		if (menuItem(name, selected = pOn)) {
+		if (menuItem("Show Occlusion Field", selected = pOn)) {
 			slidewin.renderSettings.showOcclusionField = pOn.value
 		}
 	}

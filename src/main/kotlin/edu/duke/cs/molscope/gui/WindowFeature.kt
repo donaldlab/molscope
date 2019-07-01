@@ -1,16 +1,10 @@
 package edu.duke.cs.molscope.gui
 
 import cuchaz.kludge.imgui.Commands
-import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.HasFeatureId
 
 
-abstract class WindowFeature(
-	val menu: String,
-	val name: String
-) : HasFeatureId {
-
-	override val id = FeatureId(menu, name)
+interface WindowFeature : HasFeatureId {
 
 	/**
 	 * Renders the menu item of your feature.
@@ -18,7 +12,7 @@ abstract class WindowFeature(
 	 * Called from the window thread, not the creating thread,
 	 * so be careful about synchronization of shared memory.
 	 */
-	open fun menu(imgui: Commands, win: WindowCommands) {
+	fun menu(imgui: Commands, win: WindowCommands) {
 		// do nothing by default
 	}
 
@@ -28,7 +22,7 @@ abstract class WindowFeature(
 	 * Called from the window thread, not the creating thread,
 	 * so be careful about synchronization of shared memory.
 	 */
-	open fun gui(imgui: Commands, win: WindowCommands) {
+	fun gui(imgui: Commands, win: WindowCommands) {
 		// do nothing by default
 	}
 }

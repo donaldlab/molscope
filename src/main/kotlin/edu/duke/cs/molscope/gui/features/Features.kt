@@ -3,26 +3,37 @@ package edu.duke.cs.molscope.gui.features
 
 class Features<T:HasFeatureId> {
 
-	val features = LinkedHashMap<String,LinkedHashMap<String,T>>()
+	inner class Menu(val name: String) {
 
-	fun contains(id: FeatureId) =
-		(features[id.menu]?.get(id.name)) != null
+		val id = FeatureId(name)
 
-	fun add(feature: T) {
+		val features: List<T> get() = _features
+		private val _features = ArrayList<T>()
 
-		// check for duplicates
-		if (contains(feature.id)) {
-			throw IllegalArgumentException("feature already exists in this window: $feature")
+		fun find(id: FeatureId) = _features.find { it.id == id }
+		fun contains(id: FeatureId) = find(id) != null
+
+		fun add(feature: T) {
+
+			// check for duplicates
+			if (contains(feature.id)) {
+				throw IllegalArgumentException("feature already exists in this menu")
+			}
+
+			_features.add(feature)
 		}
-
-		// add the feature
-		features
-			.computeIfAbsent(feature.id.menu) { LinkedHashMap() }
-			.put(feature.id.name, feature)
 	}
 
-	fun remove(id: FeatureId): Boolean {
-		val features = features[id.menu] ?: return false
-		return features.remove(id.name) != null
+	val menus: List<Menu> get() = _menus
+	private val _menus = ArrayList<Menu>()
+
+	fun menu(name: String): Menu {
+		val id = FeatureId(name)
+		return _menus.find { it.id == id }
+			?: Menu(name).apply {
+				_menus.add(this)
+			}
 	}
+
+	fun <R> menu(name: String, block: Menu.() -> R): R = menu(name).block()
 }

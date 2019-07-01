@@ -6,13 +6,9 @@ import edu.duke.cs.molscope.gui.WindowFeature
 import edu.duke.cs.molscope.gui.features.FeatureId
 
 
-class FileExit : WindowFeature(menu, name) {
+class Exit : WindowFeature {
 
-	companion object {
-		const val menu = "File"
-		const val name = "Exit"
-		val id = FeatureId(menu, name)
-	}
+	override val id = FeatureId("exit")
 
 	override fun menu(imgui: Commands, win: WindowCommands) = imgui.run {
 		if (menuItem("Exit")) {

@@ -5,7 +5,6 @@ import cuchaz.kludge.tools.toFloat
 import edu.duke.cs.molscope.gui.SlideFeature
 import edu.duke.cs.molscope.gui.features.Features
 import edu.duke.cs.molscope.gui.features.slide.DevOcclusionField
-import edu.duke.cs.molscope.gui.features.slide.ViewRenderSettings
 import edu.duke.cs.molscope.view.RenderView
 import org.joml.AABBd
 import org.joml.AABBf
@@ -18,10 +17,7 @@ import kotlin.collections.ArrayList
  *
  * slides must be thread-safe since they are directly accessed by the renderer
  */
-class Slide(
-	name: String,
-	val includeDefaultFeatures: Boolean = true
-) {
+class Slide(name: String) {
 
 	var name: String = name
 		private set
@@ -65,12 +61,11 @@ class Slide(
 
 		val features = Features<SlideFeature>().apply {
 
-			if (includeDefaultFeatures) {
-				add(ViewRenderSettings())
-			}
-
+			// add dev-only features if needed
 			if (Molscope.dev) {
-				add(DevOcclusionField())
+				menu("Dev") {
+					add(DevOcclusionField())
+				}
 			}
 		}
 	}

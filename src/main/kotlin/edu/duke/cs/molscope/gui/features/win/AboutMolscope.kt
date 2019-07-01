@@ -7,20 +7,16 @@ import edu.duke.cs.molscope.gui.WindowFeature
 import edu.duke.cs.molscope.gui.features.FeatureId
 
 
-class HelpAbout : WindowFeature(menu, name) {
+class AboutMolscope : WindowFeature {
 
-	companion object {
-		const val menu = "Help"
-		const val name = "About"
-		val id = FeatureId(menu, name)
-	}
+	override val id = FeatureId("about.molscope")
 
 	var shouldOpen: Boolean = false
 
 	private val popupId = id.toString()
 
 	override fun menu(imgui: Commands, win: WindowCommands) = imgui.run {
-		if (menuItem(name)) {
+		if (menuItem("About ${Molscope.name}")) {
 			shouldOpen = true
 		}
 	}

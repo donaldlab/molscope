@@ -9,13 +9,9 @@ import edu.duke.cs.molscope.gui.SlideCommands
 import edu.duke.cs.molscope.gui.features.FeatureId
 
 
-class ViewRenderSettings : SlideFeature(menu, name) {
+class MenuRenderSettings : SlideFeature {
 
-	companion object {
-		const val menu = "View"
-		const val name = "Render Settings"
-		val id = FeatureId(menu, name)
-	}
+	override val id = FeatureId("rendersettings")
 
 	val pOpen = Ref.of(false)
 	val pColorWeight = Ref.of(0f)
@@ -25,7 +21,7 @@ class ViewRenderSettings : SlideFeature(menu, name) {
 	val pAmbientOcclusionWeight = Ref.of(0f)
 
 	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
-		if (menuItem(name)) {
+		if (menuItem("Render Settings")) {
 			pOpen.value = true
 		}
 	}
@@ -41,7 +37,7 @@ class ViewRenderSettings : SlideFeature(menu, name) {
 			pDepthWeight.value = slidewin.renderSettings.depthWeight
 			pAmbientOcclusionWeight.value = slidewin.renderSettings.ambientOcclusionWeight
 
-			begin("$name##${slide.name}", pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
+			begin("Render Settings##${slide.name}", pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
 
 			// make sliders for the render settings
 			if (sliderFloat("Color", pColorWeight, 0f, 1f, "%.2f")) {

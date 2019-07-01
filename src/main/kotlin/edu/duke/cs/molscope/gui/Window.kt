@@ -1,5 +1,6 @@
 package edu.duke.cs.molscope.gui
 
+import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.imgui.context
 import cuchaz.kludge.tools.AutoCloser
@@ -13,10 +14,12 @@ import edu.duke.cs.molscope.Molscope
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.Features
-import edu.duke.cs.molscope.gui.features.win.*
+import edu.duke.cs.molscope.gui.features.win.DevFps
+import edu.duke.cs.molscope.gui.features.win.DevImguiDemo
 import edu.duke.cs.molscope.render.VulkanDevice
 import edu.duke.cs.molscope.render.WindowRenderer
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicInteger
 
 
 /**
@@ -25,8 +28,7 @@ import java.util.concurrent.CountDownLatch
 class Window(
 	title: String = "MolScope",
 	width: Int = 800,
-	height: Int = 600,
-	includeDefaultFeatures: Boolean = true
+	height: Int = 600
 ) : AutoCloseable {
 
 	// start the window and renderer on a dedicated thread
@@ -34,7 +36,7 @@ class Window(
 	private val latch = CountDownLatch(1)
 	private val thread =
 		Thread {
-			WindowThread(title, Size(width, height), includeDefaultFeatures).use {
+			WindowThread(title, Size(width, height)).use {
 				windowThread = it
 				latch.countDown()
 				windowThread.renderLoop()
@@ -101,21 +103,35 @@ class Window(
 	}
 	val slides = Slides()
 
-	inner class Features {
+	inner class WindowFeatures {
 
-		fun add(feature: WindowFeature) {
-			sync {
-				features.add(feature)
-			}
-		}
+		private var nextId = AtomicInteger(0)
 
-		fun remove(id: FeatureId): Boolean {
+		fun <R> menu(name: String, block: WindowMenu.() -> R): R {
 			sync {
-				return features.remove(id)
+				val menu = features.menu(name)
+				return object : WindowMenu {
+					override fun add(feature: WindowFeature) = menu.add(feature)
+					override fun addSeparator() = menu.add(WindowSeparator(nextId.getAndIncrement()))
+				}.block()
 			}
 		}
 	}
-	val features = Features()
+	val features = WindowFeatures()
+}
+
+interface WindowMenu {
+	fun add(feature: WindowFeature)
+	fun addSeparator()
+}
+
+private class WindowSeparator(id: Int) : WindowFeature {
+
+	override val id = FeatureId("WindowSeparator_$id")
+
+	override fun menu(imgui: Commands, win: WindowCommands) = imgui.run {
+		separator()
+	}
 }
 
 
@@ -124,8 +140,7 @@ class Window(
  */
 internal class WindowThread(
 	title: String,
-	size: Size,
-	includeDefaultFeatures: Boolean
+	size: Size
 ) : AutoCloseable {
 
 	private val closer = AutoCloser()
@@ -221,17 +236,12 @@ internal class WindowThread(
 
 	val features = Features<WindowFeature>().apply {
 
-		// init with built-in features if desired
-		if (includeDefaultFeatures) {
-			add(FileExit())
-			add(ViewColors())
-			add(HelpAbout())
-		}
-
 		// add dev-only features if desired
 		if (Molscope.dev) {
-			add(DevFps())
-			add(DevImguiDemo())
+			menu("Dev").apply {
+				add(DevFps())
+				add(DevImguiDemo())
+			}
 		}
 	}
 
@@ -270,9 +280,9 @@ internal class WindowThread(
 						if (beginMainMenuBar()) {
 
 							// render window feature menus
-							for ((menu, features) in features.features) {
-								if (beginMenu(menu.capitalize())) {
-									for (feature in features.values) {
+							for (menu in features.menus) {
+								if (beginMenu(menu.name)) {
+									for (feature in menu.features) {
 										feature.menu(this, winCommands)
 									}
 									endMenu()
@@ -283,8 +293,8 @@ internal class WindowThread(
 						}
 
 						// render window feature guis
-						for (features in features.features.values) {
-							for (feature in features.values) {
+						for (menu in features.menus) {
+							for (feature in menu.features) {
 								feature.gui(this, winCommands)
 							}
 						}

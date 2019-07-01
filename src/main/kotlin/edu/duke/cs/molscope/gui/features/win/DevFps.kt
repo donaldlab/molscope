@@ -8,18 +8,14 @@ import edu.duke.cs.molscope.gui.WindowFeature
 import edu.duke.cs.molscope.gui.features.FeatureId
 
 
-class DevFps : WindowFeature(menu, name) {
+class DevFps : WindowFeature {
 
-	companion object {
-		const val menu = "Dev"
-		const val name = "FPS"
-		val id = FeatureId(menu, name)
-	}
+	override val id = FeatureId("dev.fps")
 
 	val pOpen = Ref.of(false)
 
 	override fun menu(imgui: Commands, win: WindowCommands) = imgui.run {
-		if (menuItem(name)) {
+		if (menuItem("FPS")) {
 			pOpen.value = true
 		}
 	}
@@ -27,7 +23,7 @@ class DevFps : WindowFeature(menu, name) {
 	override fun gui(imgui: Commands, win: WindowCommands) = imgui.run {
 
 		if (pOpen.value) {
-			begin(name, pOpen)
+			begin("FPS", pOpen)
 			text("%.1f".format(Imgui.io.frameRate))
 			end()
 		}
