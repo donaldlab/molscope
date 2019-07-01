@@ -15,7 +15,7 @@ object MoleculeSelectors {
 	 */
 	val mainchain: MoleculeSelector = { mol ->
 		if (mol is Polymer) {
-			mol.chain.flatMap { it.mainchain }
+			mol.chains.flatMap { it.residues.flatMap { it.mainchain } }
 		} else {
 			emptyList()
 		}

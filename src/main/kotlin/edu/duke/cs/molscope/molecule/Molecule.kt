@@ -7,14 +7,14 @@ import kotlin.collections.ArrayList
 
 
 /**
- * A collection of atoms connected together by covalent bonds.
+ * A collection of atoms (possibly) connected together by covalent bonds.
  *
- * All atoms in the molecule should be connected into a single component.
- *
- * This representation isn't directly used for rendering,
- * so it doesn't need to be super efficient.
+ * This representation prioritizes flexibility over efficiency.
  */
 open class Molecule(val name: String) {
+
+	// define a companion object so we can extent it
+	companion object;
 
 	override fun toString() = name
 

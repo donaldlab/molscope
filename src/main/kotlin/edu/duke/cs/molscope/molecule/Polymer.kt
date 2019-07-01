@@ -9,14 +9,18 @@ class Polymer(
 	name: String
 ) : Molecule(name) {
 
-	val chain: MutableList<Residue> get() = _chain
-	private val _chain = ArrayList<Residue>()
-
-	inner class Residue(
+	class Residue(
 		val id: String,
+		val type: String,
 		val mainchain: List<Atom>,
 		val sidechains: List<List<Atom>>
 	)
+
+	class Chain(val id: String) {
+		val residues: MutableList<Residue> = ArrayList()
+	}
+
+	val chains: MutableList<Chain> = ArrayList()
 
 	override fun copy() = Polymer(name).apply {
 		val src = this@Polymer
@@ -29,13 +33,18 @@ class Polymer(
 
 		val atomMap = src.copyTo(dst as Molecule)
 
-		// copy all the residues
-		for (res in src.chain) {
-			dst.chain.add(Residue(
-				res.id,
-				res.mainchain.map { atomMap[it]!! },
-				res.sidechains.map { it.map { atomMap[it]!! } }
-			))
+		// copy all the chains
+		for (srcChain in src.chains) {
+			val dstChain = Chain(srcChain.id)
+			for (srcRes in srcChain.residues) {
+				dstChain.residues.add(Residue(
+					srcRes.id,
+					srcRes.type,
+					srcRes.mainchain.map { atomMap[it]!! },
+					srcRes.sidechains.map { it.map { atomMap[it]!! } }
+				))
+			}
+			dst.chains.add(dstChain)
 		}
 	}
 }

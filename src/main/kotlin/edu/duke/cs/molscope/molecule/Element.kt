@@ -119,7 +119,7 @@ enum class Element(val number: Int, val symbol: String) {
 
 		operator fun get(symbol: String) =
 			getOrNull(symbol)
-			?: throw NoSuchElementException("no element with symbol $symbol")
+			?: throw NoSuchElementException("unrecognized element symbol $symbol")
 
 		private val byNumber =
 			HashMap<Int,Element>().apply {
