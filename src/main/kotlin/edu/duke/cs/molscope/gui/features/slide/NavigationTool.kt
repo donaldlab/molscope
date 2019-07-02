@@ -50,11 +50,12 @@ class NavigationTool : SlideFeature {
 		}
 
 		if (pOpen.value) {
-			wasOpen = true
+			if (!wasOpen) {
 
-			// show hover effects while the window is open
-			// TODO: how do multiple features share hover effects?
-			slidewin.hoverEffect = hoverEffect
+				// add the hover effect
+				slidewin.hoverEffects[id] = hoverEffect
+			}
+			wasOpen = true
 
 			// draw the window
 			begin("Navigator##${slide.name}", pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
@@ -69,12 +70,10 @@ class NavigationTool : SlideFeature {
 			wasOpen = false
 
 			// remove the hover effect
-			// TODO: how do multiple features share hover effects?
-			slidewin.hoverEffect = null
+			slidewin.hoverEffects.remove(id)
 
 			// clear any leftover selections when the window closes
 			molViews.clearSelections()
-			slidewin.hoverEffect = null
 		}
 	}
 
@@ -192,8 +191,7 @@ class NavigationTool : SlideFeature {
 
 	private fun centerOn(slidewin: SlideCommands, pos: Vector3fc) {
 
-		// TODO: NEXTTIME: don't change the camera distances? just translate the camera?
-
+		// move the camera to the target position
 		slidewin.camera.lookAt(pos)
 	}
 }
