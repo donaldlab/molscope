@@ -4,19 +4,12 @@ import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
-import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.render.*
-import edu.duke.cs.molscope.render.OcclusionCalculator
-import edu.duke.cs.molscope.render.SlideRenderer
-import edu.duke.cs.molscope.render.SphereRenderable
-import edu.duke.cs.molscope.render.ViewRenderables
 import edu.duke.cs.molscope.tools.IdentityChangeTracker
 import edu.duke.cs.molscope.view.*
 import org.joml.Vector2f
 import kotlin.NoSuchElementException
-import kotlin.math.abs
-import kotlin.math.atan2
 
 
 internal class SlideWindow(
@@ -153,26 +146,7 @@ internal class SlideWindow(
 	// GUI state
 	private val contentMin = Vector2f()
 	private val contentMax = Vector2f()
-	private var hoverPos: Vector2f? = null
-	private var dragStartAngle = 0f
-	private var dragMode: DragMode = DragMode.RotateXY
 	private var contextMenu: ContextMenu? = null
-
-	private fun Commands.getMouseOffset(out: Vector2f = Vector2f()) =
-		out
-			.apply { getMousePos(this) }
-			.sub(Vector2f().apply { getItemRectMin(this) })
-
-	private fun Commands.getDragDelta(button: Int) =
-		Vector2f().apply { getMouseDragDelta(button, this) }
-
-	private fun getDragAngle(mousePos: Vector2f): Float {
-		val renderer = rendererInfoOrThrow.renderer
-		return atan2(
-			mousePos.y - renderer.extent.height.toFloat()/2,
-			mousePos.x - renderer.extent.width.toFloat()/2
-		)
-	}
 
 	private val commands = object : SlideCommands {
 
@@ -185,10 +159,17 @@ internal class SlideWindow(
 		}
 
 		override val renderSettings get() = rendererInfoOrThrow.renderer.settings
-
+		override val extent get() = rendererInfoOrThrow.renderer.extent
 		override var hoverEffect: RenderEffect? = null
+
 		override var mouseTarget: ViewIndexed? = null
 		override var mouseLeftClick = false
+		override var mouseLeftDrag = false
+		override val mouseOffset = Vector2f()
+		override val mouseLeftDragDelta = Vector2f()
+		override var mouseWheelDelta = 0f
+
+		override val camera get() = rendererInfoOrThrow.renderer.camera
 	}
 
 	fun gui(imgui: Commands) = imgui.run {
@@ -269,48 +250,28 @@ internal class SlideWindow(
 				}
 			}
 
-		val isContextMenuOpen = isPopupOpen(ContextMenu.id)
-
-		// translate ImGUI mouse inputs into events
+		// translate ImGUI mouse inputs into mouse state for features to consume
 		commands.mouseLeftClick = isItemClicked(0)
-		if (commands.mouseLeftClick) {
-			handleLeftDown(rendererInfo, getMouseOffset())
-		}
-		if (isItemActive() && Imgui.io.mouse.buttonDown[0]) {
-			handleLeftDrag(rendererInfo, getMouseOffset(), getDragDelta(0))
-		}
+		commands.mouseLeftDrag = isItemActive() && Imgui.io.mouse.buttonDown[0]
+		commands.mouseOffset
+			.apply { getMousePos(this) }
+			.sub(Vector2f().apply { getItemRectMin(this) })
+		getMouseDragDelta(0, commands.mouseLeftDragDelta)
+		commands.mouseWheelDelta = Imgui.io.mouse.wheel
 
 		// handle context menus
+		val isContextMenuOpen = isPopupOpen(ContextMenu.id)
 		if (!isContextMenuOpen) {
 			contextMenu = null
 
-			// update hover effects only when the context menu isn't open
+			// update the cursor in the renderer
 			if (isItemHovered()) {
-
-				// handle mouse position
-				val isEnter = hoverPos == null
-				val pos = hoverPos ?: Vector2f()
-				getMouseOffset(pos)
-				hoverPos = pos
-
-				if (isEnter) {
-					handleEnter(rendererInfo, pos)
-				}
-				handleHover(rendererInfo, pos)
-
-				// handle mouse wheel
-				val wheelDelta = Imgui.io.mouse.wheel
-				if (wheelDelta != 0f) {
-					handleWheel(rendererInfo, wheelDelta)
-				}
+				rendererInfo.renderer.cursorPos = commands.mouseOffset.toOffset()
+				rendererInfo.renderer.cursorEffect = commands.hoverEffect
 
 			} else {
-
-				// handle mouse position
-				hoverPos?.let { oldPos ->
-					hoverPos = null
-					handleLeave(rendererInfo, oldPos)
-				}
+				rendererInfo.renderer.cursorPos = null
+				rendererInfo.renderer.cursorEffect = null
 			}
 		}
 		if (beginPopupContextItem(ContextMenu.id)) {
@@ -350,70 +311,6 @@ internal class SlideWindow(
 			}
 		}
 	}
-
-	private fun handleLeftDown(rendererInfo: RendererInfo, mousePos: Vector2f) {
-
-		// start a new camera rotation
-		rendererInfo.cameraRotator.capture()
-
-		// get the normalized click dist from center
-		val w = rendererInfo.renderer.extent.width.toFloat()
-		val h = rendererInfo.renderer.extent.height.toFloat()
-		val dx = abs(mousePos.x*2f/w - 1f)
-		val dy = abs(mousePos.y*2f/h - 1f)
-
-		// pick the drag mode based on the click pos
-		// if we're near the center, rotate about xy
-		// otherwise, rotate about z
-		val cutoff = 0.8
-		dragMode = if (dx < cutoff && dy < cutoff) {
-			DragMode.RotateXY
-		} else {
-			dragStartAngle = getDragAngle(mousePos)
-			DragMode.RotateZ
-		}
-	}
-
-	private fun handleLeftDrag(rendererInfo: RendererInfo, mousePos: Vector2f, delta: Vector2f) {
-
-		// apply the drag rotations
-		rendererInfo.cameraRotator.apply {
-			q.identity()
-			when (dragMode) {
-				DragMode.RotateXY -> {
-					q.rotateAxis(delta.x/100f, up)
-					q.rotateAxis(delta.y/100f, side)
-				}
-				DragMode.RotateZ -> {
-					q.rotateAxis(getDragAngle(mousePos) - dragStartAngle, look)
-				}
-			}
-			update()
-		}
-	}
-
-	private fun handleEnter(rendererInfo: RendererInfo, pos: Vector2f) {
-		// nothing to do yet
-	}
-
-	private fun handleLeave(rendererInfo: RendererInfo, oldPos: Vector2f) {
-
-		// turn off the cursor
-		rendererInfo.renderer.cursorPos = null
-	}
-
-	private fun handleHover(rendererInfo: RendererInfo, pos: Vector2f) {
-
-		// update the cursor
-		rendererInfo.renderer.cursorPos = pos.toOffset()
-		rendererInfo.renderer.cursorEffect = commands.hoverEffect
-	}
-
-	private fun handleWheel(rendererInfo: RendererInfo, wheelDelta: Float) {
-
-		// apply mouse wheel magnification
-		rendererInfo.renderer.camera.magnification *= 1f + wheelDelta/10f
-	}
 }
 
 
@@ -421,11 +318,6 @@ private val backgroundColors = mapOf(
 	ColorsMode.Dark to ColorRGBA.Int(0, 0, 0),
 	ColorsMode.Light to ColorRGBA.Int(255, 255, 255)
 )
-
-private enum class DragMode {
-	RotateXY,
-	RotateZ
-}
 
 
 class ViewIndexed(val view: RenderView, val target: Any)
@@ -455,20 +347,6 @@ class ContextMenu {
 	companion object {
 		const val id = "contextMenu"
 	}
-
-	/* TODO: move into navigation/camera feature?
-	fun foo() {
-		text("Atom: ${atom.name}")
-		text("\tat (%.3f,%.3f,%.3f)".format(atom.pos.x, atom.pos.y, atom.pos.y))
-
-		// TEMP
-		if (button("Center")) {
-			closeCurrentPopup()
-			// TODO: add translation animations
-			renderer.camera.lookAt(atom.pos.toFloat())
-		}
-	}
-	*/
 }
 
 

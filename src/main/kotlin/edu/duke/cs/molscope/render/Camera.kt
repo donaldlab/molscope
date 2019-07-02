@@ -26,6 +26,12 @@ class Camera internal constructor(
 	val side: Vector3f = Vector3f()
 	val look: Vector3f = Vector3f()
 
+	var viewDistance: Float
+		get() = zFar - zNear
+		set(value) {
+			zFar = zNear + value
+		}
+
 	/** side = up x look */
 	fun updateSide() = side.set(up).cross(look)
 

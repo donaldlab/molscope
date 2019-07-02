@@ -546,7 +546,7 @@ internal class SlideRenderer(
 				buf.putInt(cursorEffect.b.toInt())
 				buf.putInt(cursorEffect.flags.value.toInt())
 			} else {
-				buf.skip(Int.SIZE_BYTES*4)
+				buf.putInts(0, 0, 0, 0)
 			}
 
 			buf.flip()

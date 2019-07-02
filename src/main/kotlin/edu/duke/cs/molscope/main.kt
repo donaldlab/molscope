@@ -2,6 +2,7 @@ package edu.duke.cs.molscope
 
 import cuchaz.kludge.tools.*
 import edu.duke.cs.molscope.gui.Window
+import edu.duke.cs.molscope.gui.features.slide.NavigationTool
 import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.view.BallAndStick
 import edu.duke.cs.molscope.view.SpaceFilling
@@ -136,6 +137,7 @@ fun main() = autoCloser {
 		title = "MolScope"
 	).autoClose()
 
+	/* TEMP
 	// prepare a slide for the molecule
 	win.slides.add(Slide(mol.name).apply {
 		lock { s ->
@@ -143,12 +145,18 @@ fun main() = autoCloser {
 			s.camera.lookAtEverything()
 		}
 	})
+	*/
 
 	// prepare a slide for the dipeptide
 	win.slides.add(Slide(dipeptide.name).apply {
 		lock { s ->
+
 			s.views.add(BallAndStick(dipeptide, MoleculeSelectors.mainchain))
 			s.camera.lookAtEverything()
+
+			s.features.menu("View") {
+				add(NavigationTool())
+			}
 		}
 	})
 

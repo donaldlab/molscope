@@ -14,7 +14,10 @@ class Polymer(
 		val type: String,
 		val mainchain: List<Atom>,
 		val sidechains: List<List<Atom>>
-	)
+	) {
+
+		val atoms: List<Atom> get() = mainchain + sidechains.flatten()
+	}
 
 	class Chain(val id: String) {
 		val residues: MutableList<Residue> = ArrayList()
