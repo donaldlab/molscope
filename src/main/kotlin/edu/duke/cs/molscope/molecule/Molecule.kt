@@ -1,7 +1,6 @@
 package edu.duke.cs.molscope.molecule
 
 import org.joml.Vector3d
-import org.joml.Vector3dc
 import java.util.*
 import kotlin.collections.ArrayList
 
@@ -11,7 +10,12 @@ import kotlin.collections.ArrayList
  *
  * This representation prioritizes flexibility over efficiency.
  */
-open class Molecule(val name: String) {
+open class Molecule(
+	/** A human-readable description for the molecule. */
+	val name: String,
+	/** A machine-readable descrition for the molecule, often 3 characters long. */
+	val type: String? = null
+) {
 
 	// define a companion object so we can extent it
 	companion object;
@@ -49,6 +53,12 @@ open class Molecule(val name: String) {
 		fun add(atom: Atom): Atom {
 			list.add(atom)
 			return atom
+		}
+
+		fun addAll(atoms: Collection<Atom>) {
+			for (atom in atoms) {
+				add(atom)
+			}
 		}
 
 		fun remove(atom: Atom) {
@@ -100,7 +110,7 @@ open class Molecule(val name: String) {
 data class Atom(
 	val element: Element,
 	val name: String,
-	val pos: Vector3dc
+	val pos: Vector3d
 ) {
 
 	constructor(element: Element, name: String, x: Double, y: Double, z: Double) :

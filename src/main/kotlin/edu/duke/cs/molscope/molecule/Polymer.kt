@@ -10,16 +10,17 @@ class Polymer(
 ) : Molecule(name) {
 
 	class Residue(
+		/** A unique id for this residue in the chain, often a 4-character sequence number. */
 		val id: String,
+		/** A machine-readable description of this residue, often 3 characters. */
 		val type: String,
-		val mainchain: List<Atom>,
-		val sidechains: List<List<Atom>>
+		val atoms: List<Atom>
+	)
+
+	class Chain(
+		/** A unique id for this chain, often a single character. */
+		val id: String
 	) {
-
-		val atoms: List<Atom> get() = mainchain + sidechains.flatten()
-	}
-
-	class Chain(val id: String) {
 		val residues: MutableList<Residue> = ArrayList()
 	}
 
@@ -43,8 +44,7 @@ class Polymer(
 				dstChain.residues.add(Residue(
 					srcRes.id,
 					srcRes.type,
-					srcRes.mainchain.map { atomMap[it]!! },
-					srcRes.sidechains.map { it.map { atomMap[it]!! } }
+					srcRes.atoms.map { atomMap[it]!! }
 				))
 			}
 			dst.chains.add(dstChain)

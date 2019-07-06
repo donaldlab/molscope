@@ -5,7 +5,6 @@ import edu.duke.cs.molscope.gui.Window
 import edu.duke.cs.molscope.gui.features.slide.NavigationTool
 import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.view.BallAndStick
-import edu.duke.cs.molscope.view.SpaceFilling
 
 
 fun main() = autoCloser {
@@ -118,14 +117,12 @@ fun main() = autoCloser {
 			residues.add(Polymer.Residue(
 				"1",
 				"GLU",
-				mainchain = listOf(an, ah, aca, aha, ac, ao),
-				sidechains = listOf(listOf(acb, a2hb, a3hb, acg, a2hg, a3hg, acd, aoe1, aoe2))
+				listOf(an, ah, aca, aha, acb, a2hb, a3hb, acg, a2hg, a3hg, acd, aoe1, aoe2, ac, ao)
 			))
 			residues.add(Polymer.Residue(
 				"2",
 				"ILE",
-				mainchain = listOf(bh, bn, bca, bha, bc, bo),
-				sidechains = listOf(listOf(bcb, bhb, bcg2, b1hg2, b2hg2, b3hg2, bcg1, b2hg1, b3hg1, bcd1, b1hd1, b2hd1, b3hd1))
+				listOf(bn, bh, bca, bha, bcb, bhb, bcg2, b1hg2, b2hg2, b3hg2, bcg1, b2hg1, b3hg1, bcd1, b1hd1, b2hd1, b3hd1, bc, bo)
 			))
 		})
 	}
@@ -151,7 +148,7 @@ fun main() = autoCloser {
 	win.slides.add(Slide(dipeptide.name).apply {
 		lock { s ->
 
-			s.views.add(BallAndStick(dipeptide, MoleculeSelectors.mainchain))
+			s.views.add(BallAndStick(dipeptide))
 			s.camera.lookAtEverything()
 
 			s.features.menu("View") {

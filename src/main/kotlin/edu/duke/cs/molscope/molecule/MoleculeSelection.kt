@@ -15,7 +15,8 @@ object MoleculeSelectors {
 	 */
 	val mainchain: MoleculeSelector = { mol ->
 		if (mol is Polymer) {
-			mol.chains.flatMap { it.residues.flatMap { it.mainchain } }
+			// TODO: try to find the backbone using the bond network
+			throw Error("not implemented yet")
 		} else {
 			emptyList()
 		}
