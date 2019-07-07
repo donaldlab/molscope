@@ -82,19 +82,23 @@ open class Molecule(
 		fun bondedAtoms(atom: Atom): MutableSet<Atom> =
 			adjacency.computeIfAbsent(atom) { Collections.newSetFromMap(IdentityHashMap()) }
 
-		fun add(a1: Atom, a2: Atom) {
+		fun add(a1: Atom, a2: Atom): Boolean {
 
 			if (a1 === a2) {
 				throw IllegalArgumentException("no self bonds allowed")
 			}
 
-			bondedAtoms(a1).add(a2)
-			bondedAtoms(a2).add(a1)
+			val wasAdded1 = bondedAtoms(a1).add(a2)
+			val wasAdded2 = bondedAtoms(a2).add(a1)
+			assert(wasAdded1 == wasAdded2) { "bond adjacency table mismatch" }
+			return wasAdded1
 		}
 
-		fun remove(a1: Atom, a2: Atom) {
-			bondedAtoms(a1).remove(a2)
-			bondedAtoms(a2).remove(a1)
+		fun remove(a1: Atom, a2: Atom): Boolean {
+			val wasRemoved1 = bondedAtoms(a1).remove(a2)
+			val wasRemoved2 = bondedAtoms(a2).remove(a1)
+			assert(wasRemoved1 == wasRemoved2) { "bond adjacency table mismatch" }
+			return wasRemoved1
 		}
 
 		fun isBonded(a1: Atom, a2: Atom) =
@@ -103,6 +107,8 @@ open class Molecule(
 		fun clear() {
 			adjacency.values.forEach { it.clear() }
 		}
+
+		fun count() = adjacency.values.sumBy { it.size }/2
 	}
 	val bonds = Bonds()
 }

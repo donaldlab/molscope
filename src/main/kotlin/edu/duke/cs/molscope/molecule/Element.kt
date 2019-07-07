@@ -131,7 +131,7 @@ enum class Element(val number: Int, val symbol: String) {
 		fun getOrNull(number: Int): Element? =
 			byNumber[number]
 
-		fun get(number: Int) =
+		operator fun get(number: Int) =
 			getOrNull(number)
 			?: throw NoSuchElementException("no element with number $number")
 	}

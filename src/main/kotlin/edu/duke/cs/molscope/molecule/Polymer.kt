@@ -13,9 +13,14 @@ class Polymer(
 		/** A unique id for this residue in the chain, often a 4-character sequence number. */
 		val id: String,
 		/** A machine-readable description of this residue, often 3 characters. */
-		val type: String,
-		val atoms: List<Atom>
-	)
+		val type: String
+	) {
+		val atoms: MutableList<Atom> = ArrayList()
+
+		constructor(id: String, type: String, atoms: List<Atom>) : this(id, type) {
+			this.atoms.addAll(atoms)
+		}
+	}
 
 	class Chain(
 		/** A unique id for this chain, often a single character. */
