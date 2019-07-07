@@ -1,14 +1,19 @@
 package edu.duke.cs.molscope
 
+import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.tools.expand
 import cuchaz.kludge.tools.toFloat
+import cuchaz.kludge.vulkan.Extent2D
+import edu.duke.cs.molscope.gui.SlideCommands
 import edu.duke.cs.molscope.gui.SlideFeature
+import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.Features
 import edu.duke.cs.molscope.gui.features.slide.DevOcclusionField
 import edu.duke.cs.molscope.view.RenderView
 import org.joml.AABBd
 import org.joml.AABBf
 import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.collections.ArrayList
 
 
@@ -17,7 +22,10 @@ import kotlin.collections.ArrayList
  *
  * slides must be thread-safe since they are directly accessed by the renderer
  */
-class Slide(name: String) {
+class Slide(
+	name: String,
+	val initialSize: Extent2D? = null
+) {
 
 	var name: String = name
 		private set
@@ -59,7 +67,20 @@ class Slide(name: String) {
 
 		val camera = Camera()
 
-		val features = Features<SlideFeature>().apply {
+		inner class SlideFeatures {
+
+			internal val features = Features<SlideFeature>()
+			private var nextSeparatorId = AtomicInteger(0)
+
+			fun <R> menu(name: String, block: SlideMenu.() -> R): R {
+				val menu = features.menu(name)
+				return object : SlideMenu {
+					override fun add(feature: SlideFeature) = menu.add(feature)
+					override fun addSeparator() = menu.add(SlideSeparator(nextSeparatorId.getAndIncrement()))
+				}.block()
+			}
+		}
+		val features = SlideFeatures().apply {
 
 			// add dev-only features if needed
 			if (Molscope.dev) {
@@ -93,4 +114,19 @@ class Slide(name: String) {
 
 internal interface CameraCommand {
 	data class LookAtBox(val aabb: AABBf) : CameraCommand
+}
+
+
+interface SlideMenu {
+	fun add(feature: SlideFeature)
+	fun addSeparator()
+}
+
+private class SlideSeparator(id: Int) : SlideFeature {
+
+	override val id = FeatureId("SlideSeparator_$id")
+
+	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
+		separator()
+	}
 }
