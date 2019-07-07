@@ -469,8 +469,6 @@ internal class OcclusionCalculator(
 
 			linesProcessed += numLines
 
-			// TODO: show GUI progress bar for lighting calculations?
-
 			// if all the processing is done, apply the post processing
 			if (!needsProcessing) {
 
