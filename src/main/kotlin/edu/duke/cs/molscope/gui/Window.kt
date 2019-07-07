@@ -96,14 +96,14 @@ class Window(
 
 	inner class WindowFeatures {
 
-		private var nextId = AtomicInteger(0)
+		private var nextSeparatorId = AtomicInteger(0)
 
 		fun <R> menu(name: String, block: WindowMenu.() -> R): R {
 			sync {
 				val menu = features.menu(name)
 				return object : WindowMenu {
 					override fun add(feature: WindowFeature) = menu.add(feature)
-					override fun addSeparator() = menu.add(WindowSeparator(nextId.getAndIncrement()))
+					override fun addSeparator() = menu.add(WindowSeparator(nextSeparatorId.getAndIncrement()))
 				}.block()
 			}
 		}
@@ -213,6 +213,15 @@ internal class WindowThread(
 			clear()
 		}
 
+	val slideWindowsToClose = ArrayList<SlideWindow>()
+
+	private fun closeDeferredSlideWindows() {
+		for (win in slideWindowsToClose) {
+			win.close()
+		}
+		slideWindowsToClose.clear()
+	}
+
 	fun addSlide(slide: Slide) {
 		if (!slideWindows.containsKey(slide)) {
 			slideWindows[slide] = SlideWindow(slide, graphicsQueue, exceptionViewer)
@@ -220,8 +229,11 @@ internal class WindowThread(
 	}
 
 	fun removeSlide(slide: Slide): Boolean {
-		val info = slideWindows.remove(slide) ?: return false
-		info.close()
+		val win = slideWindows.remove(slide) ?: return false
+
+		// defer cleanup of the slide window until after the current frame, otherwise Vulkan will complain
+		slideWindowsToClose.add(win)
+
 		return true
 	}
 
@@ -311,10 +323,24 @@ internal class WindowThread(
 						// render exceptions
 						exceptionViewer.gui(this)
 					}
+
+					// cleanup any deferred slide windows
+					if (slideWindowsToClose.isNotEmpty()) {
+
+						// wait for the frame to finish first though
+						device.waitForIdle()
+
+						closeDeferredSlideWindows()
+					}
+
 				} catch (ex: SwapchainOutOfDateException) {
 
-					// re-create the renderer
 					device.waitForIdle()
+
+					// cleanup any deferred slide windows
+					closeDeferredSlideWindows()
+
+					// re-create the renderer
 					renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer)
 						.autoClose(replace = renderer)
 

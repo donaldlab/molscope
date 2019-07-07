@@ -190,10 +190,15 @@ internal class SlideWindow(
 		title += "###${System.identityHashCode(slide)}"
 
 		// start the window
-		setNextWindowSizeConstraints(
-			320f, 240f,
-			Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY
-		)
+		val initialSize = slide.initialSize
+		if (initialSize != null) {
+			setNextWindowSize(initialSize, Commands.Cond.Once)
+		} else {
+			setNextWindowSizeConstraints(
+				320f, 240f,
+				Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY
+			)
+		}
 		if (!begin(title, flags = IntFlags.of(Commands.BeginFlags.MenuBar, Commands.BeginFlags.NoBringToFrontOnFocus))) {
 			end()
 			return
@@ -206,7 +211,7 @@ internal class SlideWindow(
 				if (rendererInfo != null) {
 
 					// render feature menus
-					for (menu in slide.features.menus) {
+					for (menu in slide.features.features.menus) {
 						if (beginMenu(menu.name)) {
 							for (feature in menu.features) {
 								feature.menu(this, slide, commands)
@@ -286,7 +291,7 @@ internal class SlideWindow(
 
 					// add slide features to the menu
 					slide.lock { slide ->
-						for (menu in slide.features.menus) {
+						for (menu in slide.features.features.menus) {
 							for (feature in menu.features) {
 								feature.contextMenu(contextMenu, slide, commands, target)
 							}
@@ -306,7 +311,7 @@ internal class SlideWindow(
 
 		// render the slide feature windows
 		slide.lock { slide ->
-			for (menu in slide.features.menus) {
+			for (menu in slide.features.features.menus) {
 				for (feature in menu.features) {
 					feature.gui(this, slide, commands)
 				}
