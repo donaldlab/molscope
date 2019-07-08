@@ -32,6 +32,8 @@ class Slide(
 
 	inner class Locked {
 
+		val unlocked: Slide = this@Slide
+
 		var name: String
 			get() = this@Slide.name
 			set(value) { this@Slide.name = value }

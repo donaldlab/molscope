@@ -6,6 +6,7 @@ import cuchaz.kludge.vulkan.Extent2D
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.*
 import edu.duke.cs.molscope.gui.features.FeatureId
+import edu.duke.cs.molscope.gui.features.WindowState
 import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.molecule.Polymer
 import edu.duke.cs.molscope.render.Camera
@@ -21,8 +22,7 @@ class NavigationTool : SlideFeature {
 
 	override val id = FeatureId("navigation")
 
-	private val pOpen = Ref.of(false)
-	private var wasOpen = false
+	private val winState = WindowState()
 
 	private fun Slide.Locked.molViews() = views.mapNotNull { it as? MoleculeRenderView }
 
@@ -30,7 +30,7 @@ class NavigationTool : SlideFeature {
 
 	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
 		if (menuItem("Navigate")) {
-			pOpen.value = true
+			winState.isOpen = true
 		}
 	}
 
@@ -49,37 +49,36 @@ class NavigationTool : SlideFeature {
 			wheel(slidewin)
 		}
 
-		if (pOpen.value) {
-			if (!wasOpen) {
-
+		winState.render(
+			onOpen = {
 				// add the hover effect
 				slidewin.hoverEffects[id] = hoverEffect
+			},
+			whenOpen = {
+
+				// draw the window
+				begin("Navigator##${slide.name}", winState.pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
+
+				// show camera properties
+				sliderFloat("Magnification", Ref.of(slidewin.camera::magnification), 1f, 200f, "%.1fx", power=4f)
+				sliderFloat("View Distance", Ref.of(slidewin.camera::viewDistance), 1f, 400f, "%.1f", power=4f)
+
+				end()
+			},
+			onClose = {
+
+				// remove the hover effect
+				slidewin.hoverEffects.remove(id)
+
+				// clear any leftover selections when the window closes
+				molViews.clearSelections()
 			}
-			wasOpen = true
-
-			// draw the window
-			begin("Navigator##${slide.name}", pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
-
-			// show camera properties
-			sliderFloat("Magnification", Ref.of(slidewin.camera::magnification), 1f, 200f, "%.1fx", power=4f)
-			sliderFloat("View Distance", Ref.of(slidewin.camera::viewDistance), 1f, 400f, "%.1f", power=4f)
-
-			end()
-
-		} else if (wasOpen) {
-			wasOpen = false
-
-			// remove the hover effect
-			slidewin.hoverEffects.remove(id)
-
-			// clear any leftover selections when the window closes
-			molViews.clearSelections()
-		}
+		)
 	}
 
 	override fun contextMenu(contextMenu: ContextMenu, slide: Slide.Locked, slidewin: SlideCommands, target: ViewIndexed) {
 
-		if (!pOpen.value) {
+		if (!winState.isOpen) {
 			return
 		}
 

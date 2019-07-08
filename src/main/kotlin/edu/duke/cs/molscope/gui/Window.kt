@@ -256,6 +256,7 @@ internal class WindowThread(
 			try {
 				block()
 			} catch (t: Throwable) {
+				t.printStackTrace(System.err)
 				exceptionViewer.add(t)
 			}
 		}
