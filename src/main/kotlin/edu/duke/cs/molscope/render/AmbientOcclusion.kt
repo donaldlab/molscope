@@ -236,6 +236,14 @@ internal class OcclusionCalculator(
 				renderables.spheres.map { it.boundingBox }
 				+ renderables.cylinders.map { it.boundingBox }
 			)
+			.run {
+				// if there's nothing to render, just use a dummy box
+				if (isEmpty()) {
+					listOf(AABBf())
+				} else {
+					this
+				}
+			}
 			.reduce { a, b -> AABBf(a).union(b) }
 			.apply {
 
