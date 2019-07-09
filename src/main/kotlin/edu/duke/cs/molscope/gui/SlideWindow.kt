@@ -263,7 +263,7 @@ internal class SlideWindow(
 			.apply { getMousePos(this) }
 			.sub(Vector2f().apply { getItemRectMin(this) })
 		getMouseDragDelta(0, commands.mouseLeftDragDelta)
-		commands.mouseWheelDelta = Imgui.io.mouse.wheel
+		commands.mouseWheelDelta = if (isItemHovered()) Imgui.io.mouse.wheel else 0f
 
 		// handle context menus
 		val isContextMenuOpen = isPopupOpen(ContextMenu.id)
