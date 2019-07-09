@@ -8,6 +8,9 @@ import edu.duke.cs.molscope.view.ColorsMode
 
 private var nextId = 0
 
+/**
+ * Renders a "i" icon which when hovered will show a popup.
+ */
 fun Commands.infoTip(block: () -> Unit) {
 
 	pushStyleVar(Commands.StyleVar.WindowPadding, 5f, 2f)
@@ -37,4 +40,14 @@ fun Commands.infoTip(block: () -> Unit) {
 		block()
 		endTooltip()
 	}
+}
+
+/**
+ * Calls `infoTip(block)` to display text in the tooltip.
+ * All newlines in the text are discarded and the text is wrapped at the desired width.
+ */
+fun Commands.infoTip(text: String, wrapWidth: Float = 200f) = infoTip {
+	pushTextWrapPos(wrapWidth)
+	textWrapped(text.replace("\n"," "))
+	popTextWrapPos()
 }
