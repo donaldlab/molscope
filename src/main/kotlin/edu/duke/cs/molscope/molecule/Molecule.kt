@@ -1,5 +1,6 @@
 package edu.duke.cs.molscope.molecule
 
+import edu.duke.cs.molscope.tools.assert
 import org.joml.Vector3d
 import java.util.*
 import kotlin.collections.ArrayList
@@ -88,6 +89,10 @@ open class Molecule(
 				throw IllegalArgumentException("no self bonds allowed")
 			}
 
+			// just in case...
+			assert { atoms.any { it === a1 } }
+			assert { atoms.any { it === a2 } }
+
 			val wasAdded1 = bondedAtoms(a1).add(a2)
 			val wasAdded2 = bondedAtoms(a2).add(a1)
 			assert(wasAdded1 == wasAdded2) { "bond adjacency table mismatch" }
@@ -102,13 +107,28 @@ open class Molecule(
 		}
 
 		fun isBonded(a1: Atom, a2: Atom) =
-			a1 in bondedAtoms(a2)
+			bondedAtoms(a1).find { it === a2 } != null
 
 		fun clear() {
 			adjacency.values.forEach { it.clear() }
 		}
 
 		fun count() = adjacency.values.sumBy { it.size }/2
+
+		fun toSet(): Set<Pair<Atom,Atom>> =
+			LinkedHashSet<Pair<Atom,Atom>>().apply {
+				for (a1 in atoms) {
+					for (a2 in bondedAtoms(a1)) {
+						// sort the atoms, so we get a determinstic bond ordering
+						// and also so both atom directions map to the same bucket in the hash table
+						if (a1.hashCode() < a2.hashCode()) {
+							add(a1 to a2)
+						} else {
+							add(a2 to a1)
+						}
+					}
+				}
+			}
 	}
 	val bonds = Bonds()
 }

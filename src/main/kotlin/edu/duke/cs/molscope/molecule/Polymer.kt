@@ -55,4 +55,12 @@ class Polymer(
 			dst.chains.add(dstChain)
 		}
 	}
+
+	fun findResidue(atom: Atom) =
+		chains
+			.flatMap { it.residues }
+			.find { atom in it.atoms }
+
+	fun findResidueOrThrow(atom: Atom) = findResidue(atom)
+		?: throw NoSuchElementException("atom ${atom.name} was not found in any residue")
 }
