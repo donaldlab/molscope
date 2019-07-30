@@ -165,6 +165,7 @@ internal class SlideWindow(
 
 		override var mouseTarget: ViewIndexed? = null
 		override var mouseLeftClick = false
+		override var mouseLeftRelease = false
 		override var mouseLeftDrag = false
 		override val mouseOffset = Vector2f()
 		override val mouseLeftDragDelta = Vector2f()
@@ -258,6 +259,7 @@ internal class SlideWindow(
 
 		// translate ImGUI mouse inputs into mouse state for features to consume
 		commands.mouseLeftClick = isItemClicked(0)
+		commands.mouseLeftRelease = isMouseReleased(0)
 		commands.mouseLeftDrag = isItemActive() && Imgui.io.mouse.buttonDown[0]
 		commands.mouseOffset
 			.apply { getMousePos(this) }

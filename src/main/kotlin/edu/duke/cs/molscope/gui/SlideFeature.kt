@@ -54,6 +54,7 @@ interface SlideCommands {
 
 	val mouseTarget: ViewIndexed?
 	val mouseLeftClick: Boolean
+	val mouseLeftRelease: Boolean
 	val mouseLeftDrag: Boolean
 	val mouseOffset: Vector2fc
 	val mouseLeftDragDelta: Vector2fc
