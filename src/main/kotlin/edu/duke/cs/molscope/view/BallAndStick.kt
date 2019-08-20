@@ -88,6 +88,8 @@ class BallAndStick(
 
 		override val boundingBox get() = calcBoundingBox()
 
+		override val numOccluders get() = sel.size
+
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
 			for (atom in sel) {
@@ -135,6 +137,8 @@ class BallAndStick(
 		}
 
 		override val boundingBox get() = calcBoundingBox()
+
+		override val numOccluders get() = bonds.size
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 			for (bond in bonds) {

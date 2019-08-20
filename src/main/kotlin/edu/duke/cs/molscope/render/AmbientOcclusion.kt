@@ -233,8 +233,8 @@ internal class OcclusionCalculator(
 
 		// compute the bounding box for the occlusion field
 		val box = (
-				renderables.spheres.map { it.boundingBox }
-				+ renderables.cylinders.map { it.boundingBox }
+				renderables.spheres.mapNotNull { it.boundingBox }
+				+ renderables.cylinders.mapNotNull { it.boundingBox }
 			)
 			.run {
 				// if there's nothing to render, just use a dummy box
@@ -255,7 +255,7 @@ internal class OcclusionCalculator(
 		private fun bufSize(size: Long) = max(1L, size)
 
 		// upload the spheres
-		val numSpheres = renderables.spheres.sumBy { it.numVertices }
+		val numSpheres = renderables.spheres.sumBy { it.numOccluders }
 		val spheresBuf = device
 			.buffer(
 				size = bufSize(16L + numSpheres*16L), // sizeof(struct Sphere)
@@ -277,7 +277,7 @@ internal class OcclusionCalculator(
 			}
 
 		// upload the cylinders
-		val numCylinders = renderables.cylinders.sumBy { it.numIndices/2 }
+		val numCylinders = renderables.cylinders.sumBy { it.numOccluders }
 		val cylindersBuf = device
 			.buffer(
 				size = bufSize(16L + numCylinders*32L), // sizeof(struct Cylinder)

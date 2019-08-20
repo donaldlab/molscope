@@ -195,12 +195,16 @@ internal class CylinderRenderer(
 
 
 interface CylinderRenderable {
+
 	val numVertices: Int
 	val verticesSequence: Int
 	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)
+
 	val numIndices: Int
 	val indicesSequence: Int
 	fun fillIndexBuffer(buf: ByteBuffer)
-	val boundingBox: AABBf
-	fun fillOcclusionBuffer(buf: ByteBuffer)
+
+	val boundingBox: AABBf? get() = null
+	val numOccluders: Int get() = 0
+	fun fillOcclusionBuffer(buf: ByteBuffer) {}
 }

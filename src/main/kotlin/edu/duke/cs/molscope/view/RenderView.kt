@@ -11,7 +11,7 @@ import org.joml.AABBf
  * Represents a renderable view of a Thing.
  */
 interface RenderView {
-	fun calcBoundingBox(): AABBf
+	fun calcBoundingBox(): AABBf? = null
 	fun getIndexed(index: Int): Any? = null
 	val spheres: SphereRenderable? get() = null
 	val cylinders: CylinderRenderable? get() = null

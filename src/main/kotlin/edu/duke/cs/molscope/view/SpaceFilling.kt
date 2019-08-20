@@ -57,6 +57,8 @@ class SpaceFilling(
 
 		override val boundingBox get() = calcBoundingBox()
 
+		override val numOccluders get() = sel.size
+
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
 			for (atom in sel) {

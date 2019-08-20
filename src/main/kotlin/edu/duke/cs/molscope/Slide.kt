@@ -47,7 +47,7 @@ class Slide(
 			}
 
 			return views
-				.map { view -> view.calcBoundingBox() }
+				.mapNotNull { view -> view.calcBoundingBox() }
 				.reduce { a, b -> AABBf().apply { a.union(b, this) } }
 		}
 
