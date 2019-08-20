@@ -7,6 +7,7 @@ import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.molecule.Molecule
 import edu.duke.cs.molscope.molecule.MoleculeSelector
 import java.nio.ByteBuffer
+import java.util.*
 
 
 data class RenderEffect(val flags: ByteFlags<Flags>, val r: UByte, val g: UByte, val b: UByte) {
@@ -43,7 +44,7 @@ fun ByteBuffer.put(effect: RenderEffect?) {
 
 class MoleculeRenderEffects(val mol: Molecule) {
 
-	private val effectsByAtom = HashMap<Atom,RenderEffect>()
+	private val effectsByAtom = IdentityHashMap<Atom,RenderEffect>()
 
 	var sequence: Int = 0
 		private set
