@@ -5,8 +5,6 @@ import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.CameraCommand
 import edu.duke.cs.molscope.Slide
-import edu.duke.cs.molscope.view.BallAndStick
-import edu.duke.cs.molscope.view.SpaceFilling
 import org.joml.Vector3f
 import java.nio.ByteBuffer
 import kotlin.reflect.KProperty
@@ -606,15 +604,10 @@ internal class SlideRenderer(
 				)
 			)
 			slide.views.forEachIndexed { i, view ->
-				when (view) {
-					is SpaceFilling -> {
-						sphereRenderer.render(this, view.sphereRenderable, i)
-					}
-					is BallAndStick -> {
-						sphereRenderer.render(this, view.sphereRenderable, i)
-						cylinderRenderer.render(this, view.cylinderRenderable, i)
-					}
-				}
+				view.spheres?.let { sphereRenderer.render(this, it, i) }
+			}
+			slide.views.forEachIndexed { i, view ->
+				view.cylinders?.let { cylinderRenderer.render(this, it, i) }
 			}
 			if (settings.showOcclusionField) {
 				occlusionRenderer.render(this, occlusionField)

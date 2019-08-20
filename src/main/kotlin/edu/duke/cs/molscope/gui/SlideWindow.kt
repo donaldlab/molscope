@@ -97,20 +97,9 @@ internal class SlideWindow(
 			renderer.backgroundColor = backgroundColors[ColorsMode.current]!!
 
 			// gather all the renderables by type
-			// sadly we can't use an interface to collect SphereRenderable instances from views,
-			// because these rendering details are internal, and the views are public API
-			// alas, kotlin doesn't allow mixing internal interfaces into public classes
-			// so, this is going to get a bit messy...
 			val renderables = ViewRenderables(
-				spheres = slide.views.mapNotNull { when (it) {
-					is SpaceFilling -> it.sphereRenderable
-					is BallAndStick -> it.sphereRenderable
-					else -> null
-				}},
-				cylinders = slide.views.mapNotNull { when (it) {
-					is BallAndStick -> it.cylinderRenderable
-					else -> null
-				}}
+				spheres = slide.views.mapNotNull { it.spheres },
+				cylinders = slide.views.mapNotNull { it.cylinders }
 			)
 
 			// did any renderables change?
@@ -155,6 +144,7 @@ internal class SlideWindow(
 			try {
 				block()
 			} catch (t: Throwable) {
+				t.printStackTrace(System.err)
 				exceptionViewer.add(t)
 			}
 		}

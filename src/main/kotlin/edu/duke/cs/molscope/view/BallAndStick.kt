@@ -61,7 +61,7 @@ class BallAndStick(
 
 
 	// render the atoms as spheres
-	internal val sphereRenderable = object : SphereRenderable {
+	override val spheres = object : SphereRenderable {
 
 		override val numVertices get() = sel.size
 		override val verticesSequence get() = molSequence + renderEffects.sequence
@@ -102,7 +102,7 @@ class BallAndStick(
 	}
 
 	// render the bonds as cylinders
-	internal val cylinderRenderable = object : CylinderRenderable {
+	override val cylinders = object : CylinderRenderable {
 
 		override val numVertices get() = sel.size
 		override val verticesSequence get() = molSequence + renderEffects.sequence

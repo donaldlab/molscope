@@ -170,7 +170,7 @@ internal class SphereRenderer(
 }
 
 
-internal interface SphereRenderable {
+interface SphereRenderable {
 	val numVertices: Int
 	val verticesSequence: Int
 	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)

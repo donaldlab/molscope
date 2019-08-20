@@ -1,7 +1,9 @@
 package edu.duke.cs.molscope.view
 
 import edu.duke.cs.molscope.molecule.Molecule
+import edu.duke.cs.molscope.render.CylinderRenderable
 import edu.duke.cs.molscope.render.MoleculeRenderEffects
+import edu.duke.cs.molscope.render.SphereRenderable
 import org.joml.AABBf
 
 
@@ -11,6 +13,8 @@ import org.joml.AABBf
 interface RenderView {
 	fun calcBoundingBox(): AABBf
 	fun getIndexed(index: Int): Any? = null
+	val spheres: SphereRenderable? get() = null
+	val cylinders: CylinderRenderable? get() = null
 }
 
 

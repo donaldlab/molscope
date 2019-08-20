@@ -30,7 +30,7 @@ class SpaceFilling(
 
 	override var renderEffects = MoleculeRenderEffects(mol)
 
-	internal val sphereRenderable = object : SphereRenderable {
+	override val spheres = object : SphereRenderable {
 		
 		override val numVertices get() = sel.size
 		override val verticesSequence get() = molSequence + renderEffects.sequence

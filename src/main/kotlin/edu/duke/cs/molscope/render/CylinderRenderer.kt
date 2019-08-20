@@ -194,7 +194,7 @@ internal class CylinderRenderer(
 }
 
 
-internal interface CylinderRenderable {
+interface CylinderRenderable {
 	val numVertices: Int
 	val verticesSequence: Int
 	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)
