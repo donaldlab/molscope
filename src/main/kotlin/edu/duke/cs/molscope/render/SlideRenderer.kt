@@ -770,6 +770,18 @@ class RenderSettings {
 	var ambientOcclusionWeight: Float by Dirtyable(1f)
 
 	var showOcclusionField: Boolean = false
+
+	fun set(other: RenderSettings) {
+
+		this.backgroundColor = other.backgroundColor
+		this.colorWeight = other.colorWeight
+		this.lightWeight = other.lightWeight
+		this.shadingWeight = other.shadingWeight
+		this.depthWeight = other.depthWeight
+		this.ambientOcclusionWeight = other.ambientOcclusionWeight
+
+		this.showOcclusionField = other.showOcclusionField
+	}
 }
 
 private fun ByteBuffer.putSettings(settings: RenderSettings) {

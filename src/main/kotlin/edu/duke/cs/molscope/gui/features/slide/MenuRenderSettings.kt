@@ -7,13 +7,17 @@ import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.SlideFeature
 import edu.duke.cs.molscope.gui.SlideCommands
 import edu.duke.cs.molscope.gui.features.FeatureId
+import edu.duke.cs.molscope.render.RenderSettings
 
 
-class MenuRenderSettings : SlideFeature {
+class MenuRenderSettings(private val initialSettings: RenderSettings) : SlideFeature {
 
 	override val id = FeatureId("rendersettings")
 
 	val pOpen = Ref.of(false)
+
+	var isInitialized = false
+		private set
 
 	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
 		if (menuItem("Render Settings")) {
@@ -22,6 +26,12 @@ class MenuRenderSettings : SlideFeature {
 	}
 
 	override fun gui(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
+
+		// apply initial settings if needed
+		if (!isInitialized) {
+			slidewin.renderSettings.set(initialSettings)
+			isInitialized = true
+		}
 
 		if (pOpen.value) {
 
