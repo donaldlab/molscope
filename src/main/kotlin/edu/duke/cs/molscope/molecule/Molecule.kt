@@ -99,6 +99,8 @@ open class Molecule(
 			return wasAdded1
 		}
 
+		fun add(pair: AtomPair) = add(pair.a, pair.b)
+
 		fun remove(a1: Atom, a2: Atom): Boolean {
 			val wasRemoved1 = bondedAtoms(a1).remove(a2)
 			val wasRemoved2 = bondedAtoms(a2).remove(a1)
@@ -106,8 +108,12 @@ open class Molecule(
 			return wasRemoved1
 		}
 
+		fun remove(pair: AtomPair) = remove(pair.a, pair.b)
+
 		fun isBonded(a1: Atom, a2: Atom) =
 			bondedAtoms(a1).find { it === a2 } != null
+
+		fun isBonded(pair: AtomPair) = isBonded(pair.a, pair.b)
 
 		fun clear() {
 			adjacency.values.forEach { it.clear() }
@@ -115,17 +121,11 @@ open class Molecule(
 
 		fun count() = adjacency.values.sumBy { it.size }/2
 
-		fun toSet(): Set<Pair<Atom,Atom>> =
-			LinkedHashSet<Pair<Atom,Atom>>().apply {
+		fun toSet(): Set<AtomPair> =
+			LinkedHashSet<AtomPair>().apply {
 				for (a1 in atoms) {
 					for (a2 in bondedAtoms(a1)) {
-						// sort the atoms, so we get a determinstic bond ordering
-						// and also so both atom directions map to the same bucket in the hash table
-						if (a1.hashCode() < a2.hashCode()) {
-							add(a1 to a2)
-						} else {
-							add(a2 to a1)
-						}
+						add(AtomPair(a1, a2))
 					}
 				}
 			}
@@ -143,4 +143,54 @@ data class Atom(
 		this(element, name, Vector3d(x, y, z))
 
 	override fun toString() = name
+}
+
+
+/**
+ * A pair of atoms that defines equality by atom identity (ie ===),
+ * and is insensitive to atom order.
+ */
+class AtomPair(val a: Atom, val b: Atom) {
+
+	override fun hashCode() =
+		System.identityHashCode(a) xor System.identityHashCode(b)
+
+	override fun equals(other: Any?) =
+		other is AtomPair && (
+			// use identity comparisons (not equality)
+			(this.a === other.a && this.b === other.b)
+			// allow the complementary order to match also
+			|| (this.a === other.b && this.b === other.a)
+		)
+
+	operator fun component1() = a
+	operator fun component2() = b
+
+	fun toContent() = ContentAtomPair(a, b)
+}
+
+
+/**
+ * A pair of atoms that defines equality by atom equality (ie ==),
+ * and is insensitive to atom order.
+ */
+class ContentAtomPair(val a: Atom, val b: Atom) {
+
+	override fun hashCode() =
+		a.hashCode() xor b.hashCode()
+
+	override fun equals(other: Any?) =
+		other is ContentAtomPair && (
+			// use equality comparisons (not identity)
+			(this.a == other.a && this.b == other.b)
+			// allow the complementary order to match also
+			|| (this.a == other.b && this.b == other.a)
+		)
+
+	override fun toString() = "$a - $b"
+
+	operator fun component1() = a
+	operator fun component2() = b
+
+	fun toIdentity() = AtomPair(a, b)
 }
