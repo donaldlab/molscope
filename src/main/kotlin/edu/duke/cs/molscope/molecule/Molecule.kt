@@ -83,6 +83,9 @@ open class Molecule(
 		fun bondedAtoms(atom: Atom): MutableSet<Atom> =
 			adjacency.computeIfAbsent(atom) { Collections.newSetFromMap(IdentityHashMap()) }
 
+		fun bondedAtomsSorted(atom: Atom): List<Atom> =
+			bondedAtoms(atom).sortedBy { it.name }
+
 		fun add(a1: Atom, a2: Atom): Boolean {
 
 			if (a1 === a2) {
@@ -124,7 +127,8 @@ open class Molecule(
 		fun toSet(): Set<AtomPair> =
 			LinkedHashSet<AtomPair>().apply {
 				for (a1 in atoms) {
-					for (a2 in bondedAtoms(a1)) {
+					// sort the bonded atoms, so the bond list is deterministic
+					for (a2 in bondedAtomsSorted(a1)) {
 						add(AtomPair(a1, a2))
 					}
 				}
