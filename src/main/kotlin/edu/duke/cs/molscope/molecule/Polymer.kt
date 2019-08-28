@@ -20,6 +20,8 @@ class Polymer(
 		constructor(id: String, type: String, atoms: List<Atom>) : this(id, type) {
 			this.atoms.addAll(atoms)
 		}
+
+		override fun toString() = "$id:$type"
 	}
 
 	class Chain(
@@ -27,6 +29,8 @@ class Polymer(
 		val id: String
 	) {
 		val residues: MutableList<Residue> = ArrayList()
+
+		override fun toString() = id
 	}
 
 	val chains: MutableList<Chain> = ArrayList()

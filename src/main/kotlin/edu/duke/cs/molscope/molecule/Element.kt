@@ -134,5 +134,12 @@ enum class Element(val number: Int, val symbol: String) {
 		operator fun get(number: Int) =
 			getOrNull(number)
 			?: throw NoSuchElementException("no element with number $number")
+
+		fun findByPrefixMatch(query: String): Element? {
+			for (i in 1 .. query.length) {
+				return getOrNull(query.substring(0, i)) ?: continue
+			}
+			return null
+		}
 	}
 }

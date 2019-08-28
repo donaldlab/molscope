@@ -167,6 +167,8 @@ class AtomPair(val a: Atom, val b: Atom) {
 			|| (this.a === other.b && this.b === other.a)
 		)
 
+	override fun toString() = "$a - $b"
+
 	operator fun component1() = a
 	operator fun component2() = b
 
