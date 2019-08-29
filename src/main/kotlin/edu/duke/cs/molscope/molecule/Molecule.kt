@@ -200,3 +200,87 @@ class ContentAtomPair(val a: Atom, val b: Atom) {
 
 	fun toIdentity() = AtomPair(a, b)
 }
+
+
+/**
+ * Combine multiple Molecules into a single Molecule (by making copies of the input molecules)
+ * and returns a map of the input atoms to the atoms in the combined molecule
+ */
+fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false): Pair<Molecule,Map<Atom,Atom>> {
+
+	// are there any polymers?
+	val dstMol = if (any { it is Polymer }) {
+
+		// yup, the out molecules needs to be a polymer too
+		Polymer(name)
+	} else {
+		Molecule(name)
+	}
+
+	// copy atoms
+	val atomMap = IdentityHashMap<Atom,Atom>()
+	for (srcMol in this) {
+		for (srcAtom in srcMol.atoms) {
+			val dstAtom = srcAtom.copy()
+			atomMap[srcAtom] = dstAtom
+			dstMol.atoms.add(dstAtom)
+		}
+	}
+
+	// copy bonds
+	for (srcMol in this) {
+		for (srcBond in srcMol.bonds.toSet()) {
+			dstMol.bonds.add(
+				atomMap.getValue(srcBond.a),
+				atomMap.getValue(srcBond.b)
+			)
+		}
+	}
+
+	// make a unique chain id generator
+	val usedChainIds =
+		filterIsInstance<Polymer>().flatMap { polymer -> polymer.chains.map { it.id } }
+			.toMutableSet()
+	var nextChainId = 'A'
+	fun getNextChainId(): String {
+		if (nextChainId > 'Z') {
+			throw IllegalStateException("out of unique chain ids in A-Z")
+		}
+		return "${nextChainId++}"
+	}
+	fun getUniqueChainId(): String {
+		var chainId = getNextChainId()
+		while (chainId in usedChainIds) {
+			chainId = getNextChainId()
+		}
+		return chainId
+	}
+
+	// copy the chains, if any
+	for (srcMol in filterIsInstance<Polymer>()) {
+		for (srcChain in srcMol.chains) {
+
+			var dstChainId = srcChain.id
+			if ((dstMol as Polymer).chains.any { it.id == dstChainId }) {
+				if (resolveChainIds) {
+					dstChainId = getUniqueChainId()
+				} else {
+					throw IllegalArgumentException("molecules have clashing chainIds, and resolveChainIds is false")
+				}
+			}
+
+			val dstChain = Polymer.Chain(dstChainId)
+			dstMol.chains.add(dstChain)
+
+			for (srcRes in srcChain.residues) {
+				dstChain.residues.add(Polymer.Residue(
+					srcRes.id,
+					srcRes.type,
+					srcRes.atoms.map { atomMap.getValue(it) }
+				))
+			}
+		}
+	}
+
+	return dstMol to atomMap
+}

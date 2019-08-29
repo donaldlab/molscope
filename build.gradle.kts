@@ -17,7 +17,7 @@ dependencies {
 	compile(kotlin("stdlib-jdk8"))
 	compile("cuchaz:kludge")
 
-	// TODO: add kotlin-test
+	testImplementation("io.kotlintest:kotlintest-runner-junit5:3.4.0")
 }
 
 configure<JavaPluginConvention> {
