@@ -10,6 +10,11 @@ import io.kotlintest.shouldThrow
 
 
 class TestMoleculeCombine : SharedSpec({
+	
+	fun AtomMap.assert(a: Atom, b: Atom) {
+		getB(a) shouldBeSameInstanceAs b
+		getA(b) shouldBeSameInstanceAs a
+	}
 
 	test("one small") {
 
@@ -29,8 +34,8 @@ class TestMoleculeCombine : SharedSpec({
 		combined.bonds.count() shouldBe 1
 		combined.bonds.isBonded(dstC, dstN) shouldBe true
 
-		atomMap[srcC] shouldBeSameInstanceAs dstC
-		atomMap[srcN] shouldBeSameInstanceAs dstN
+		atomMap.assert(srcC, dstC)
+		atomMap.assert(srcN, dstN)
 	}
 
 	test("two small") {
@@ -61,10 +66,10 @@ class TestMoleculeCombine : SharedSpec({
 		combined.bonds.isBonded(dstC1, dstN1) shouldBe true
 		combined.bonds.isBonded(dstC2, dstN2) shouldBe true
 
-		atomMap[srcC1] shouldBeSameInstanceAs dstC1
-		atomMap[srcN1] shouldBeSameInstanceAs dstN1
-		atomMap[srcC2] shouldBeSameInstanceAs dstC2
-		atomMap[srcN2] shouldBeSameInstanceAs dstN2
+		atomMap.assert(srcC1, dstC1)
+		atomMap.assert(srcN1, dstN1)
+		atomMap.assert(srcC2, dstC2)
+		atomMap.assert(srcN2, dstN2)
 	}
 
 	test("one polymer") {
@@ -96,8 +101,8 @@ class TestMoleculeCombine : SharedSpec({
 		srcRes shouldNotBeSameInstanceAs dstRes
 		dstRes.atoms shouldContainExactlyInAnyOrder  listOf(dstC, dstN)
 
-		atomMap[srcC] shouldBeSameInstanceAs dstC
-		atomMap[srcN] shouldBeSameInstanceAs dstN
+		atomMap.assert(srcC, dstC)
+		atomMap.assert(srcN, dstN)
 	}
 
 	test("two polymer") {
@@ -146,10 +151,10 @@ class TestMoleculeCombine : SharedSpec({
 		srcRes2 shouldNotBeSameInstanceAs dstRes2
 		dstRes2.atoms shouldContainExactlyInAnyOrder listOf(dstC2, dstN2)
 
-		atomMap[srcC1] shouldBeSameInstanceAs dstC1
-		atomMap[srcN1] shouldBeSameInstanceAs dstN1
-		atomMap[srcC2] shouldBeSameInstanceAs dstC2
-		atomMap[srcN2] shouldBeSameInstanceAs dstN2
+		atomMap.assert(srcC1, dstC1)
+		atomMap.assert(srcN1, dstN1)
+		atomMap.assert(srcC2, dstC2)
+		atomMap.assert(srcN2, dstN2)
 	}
 
 	test("two polymer, chain id collision") {

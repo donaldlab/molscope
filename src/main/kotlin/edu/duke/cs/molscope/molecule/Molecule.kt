@@ -204,9 +204,9 @@ class ContentAtomPair(val a: Atom, val b: Atom) {
 
 /**
  * Combine multiple Molecules into a single Molecule (by making copies of the input molecules)
- * and returns a map of the input atoms to the atoms in the combined molecule
+ * and returns a map between the input atoms (A side) and the atoms in the combined molecule (B side)
  */
-fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false): Pair<Molecule,Map<Atom,Atom>> {
+fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false): Pair<Molecule,AtomMap> {
 
 	// are there any polymers?
 	val dstMol = if (any { it is Polymer }) {
@@ -218,11 +218,11 @@ fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false)
 	}
 
 	// copy atoms
-	val atomMap = IdentityHashMap<Atom,Atom>()
+	val atomMap = AtomMap()
 	for (srcMol in this) {
 		for (srcAtom in srcMol.atoms) {
 			val dstAtom = srcAtom.copy()
-			atomMap[srcAtom] = dstAtom
+			atomMap.add(srcAtom, dstAtom)
 			dstMol.atoms.add(dstAtom)
 		}
 	}
@@ -231,8 +231,8 @@ fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false)
 	for (srcMol in this) {
 		for (srcBond in srcMol.bonds.toSet()) {
 			dstMol.bonds.add(
-				atomMap.getValue(srcBond.a),
-				atomMap.getValue(srcBond.b)
+				atomMap.getBOrThrow(srcBond.a),
+				atomMap.getBOrThrow(srcBond.b)
 			)
 		}
 	}
@@ -276,7 +276,7 @@ fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false)
 				dstChain.residues.add(Polymer.Residue(
 					srcRes.id,
 					srcRes.type,
-					srcRes.atoms.map { atomMap.getValue(it) }
+					srcRes.atoms.map { atomMap.getBOrThrow(it) }
 				))
 			}
 		}
