@@ -17,3 +17,14 @@ fun Commands.pushStyleDisabled() {
 fun Commands.popStyleDisabled(num: Int = 1) {
 	popStyleVar(num)
 }
+
+inline fun <R> Commands.styleDisabledIf(isDisabled: Boolean, block: () -> R): R {
+	if (isDisabled) {
+		pushStyleDisabled()
+	}
+	val ret = block()
+	if (isDisabled) {
+		popStyleDisabled()
+	}
+	return ret
+}
