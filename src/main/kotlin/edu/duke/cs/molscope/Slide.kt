@@ -72,12 +72,14 @@ class Slide(
 		inner class SlideFeatures {
 
 			internal val features = Features<SlideFeature>()
+			private var nextSpacingId = AtomicInteger(0)
 			private var nextSeparatorId = AtomicInteger(0)
 
 			fun <R> menu(name: String, block: SlideMenu.() -> R): R {
 				val menu = features.menu(name)
 				return object : SlideMenu {
 					override fun add(feature: SlideFeature) = menu.add(feature)
+					override fun addSpacing(num: Int) = menu.add(SlideSpacing(nextSpacingId.getAndIncrement(), num))
 					override fun addSeparator() = menu.add(SlideSeparator(nextSeparatorId.getAndIncrement()))
 				}.block()
 			}
@@ -121,7 +123,19 @@ internal interface CameraCommand {
 
 interface SlideMenu {
 	fun add(feature: SlideFeature)
+	fun addSpacing(num: Int = 1)
 	fun addSeparator()
+}
+
+private class SlideSpacing(id: Int, val num: Int) : SlideFeature {
+
+	override val id = FeatureId("SlideSpace_$id")
+
+	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
+		for (i in 0 until num) {
+			spacing()
+		}
+	}
 }
 
 private class SlideSeparator(id: Int) : SlideFeature {
