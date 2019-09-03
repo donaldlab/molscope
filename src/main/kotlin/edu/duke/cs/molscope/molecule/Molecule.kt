@@ -201,12 +201,43 @@ class ContentAtomPair(val a: Atom, val b: Atom) {
 	fun toIdentity() = AtomPair(a, b)
 }
 
+/**
+ * Creates unique chain ids to solve chain id conflicts when combining molecules into Polymers.
+ */
+interface ChainIdGenerator {
+
+	fun setUsedIds(ids: Collection<String>)
+	fun generateId(): String
+}
+
+/**
+ * Generates chains for non-polymer molecules when combining with polymers.
+ */
+interface ChainGenerator {
+
+	fun setUsedIds(ids: Collection<String>)
+
+	/**
+	 * `nonPolymerMol` is the input molecule to combination. `polyerAtoms` are the
+	 * atoms in the combined Polymer output molecule, which have already been copied from
+	 * `nonPolymerMol`.
+	 */
+	fun generateChain(nonPolymerMol: Molecule, polymerAtoms: List<Atom>): Polymer.Chain
+}
 
 /**
  * Combine multiple Molecules into a single Molecule (by making copies of the input molecules)
- * and returns a map between the input atoms (A side) and the atoms in the combined molecule (B side)
+ * and returns a map between the input atoms (A side) and the atoms in the combined molecule (B side).
+ *
+ * If one of the input molecules is a polymer, the output molecule will be a Polymer.
+ *
+ * Include a ChainGenerator if you want any non-polymer molecules to be combined into the Polymer as new chains.
  */
-fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false): Pair<Molecule,AtomMap> {
+fun Collection<Molecule>.combine(
+	name: String,
+	chainIdGenerator: ChainIdGenerator? = null,
+	chainGenerator: ChainGenerator? = null
+): Pair<Molecule,AtomMap> {
 
 	// are there any polymers?
 	val dstMol = if (any { it is Polymer }) {
@@ -237,36 +268,22 @@ fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false)
 		}
 	}
 
-	// make a unique chain id generator
-	val usedChainIds =
-		filterIsInstance<Polymer>().flatMap { polymer -> polymer.chains.map { it.id } }
-			.toMutableSet()
-	var nextChainId = 'A'
-	fun getNextChainId(): String {
-		if (nextChainId > 'Z') {
-			throw IllegalStateException("out of unique chain ids in A-Z")
-		}
-		return "${nextChainId++}"
-	}
-	fun getUniqueChainId(): String {
-		var chainId = getNextChainId()
-		while (chainId in usedChainIds) {
-			chainId = getNextChainId()
-		}
-		return chainId
-	}
+	// prep the chain id generator
+	val srcPolymers = filterIsInstance<Polymer>()
+	chainIdGenerator?.setUsedIds(srcPolymers.flatMap { it.chains.map { it.id }})
 
 	// copy the chains, if any
-	for (srcMol in filterIsInstance<Polymer>()) {
+	for (srcMol in srcPolymers) {
+		dstMol as Polymer
 		for (srcChain in srcMol.chains) {
 
 			var dstChainId = srcChain.id
-			if ((dstMol as Polymer).chains.any { it.id == dstChainId }) {
-				if (resolveChainIds) {
-					dstChainId = getUniqueChainId()
-				} else {
-					throw IllegalArgumentException("molecules have clashing chainIds, and resolveChainIds is false")
-				}
+			if (dstMol.chains.any { it.id == dstChainId }) {
+				dstChainId = chainIdGenerator?.generateId()
+					?: throw IllegalArgumentException(
+						"chain id $dstChainId clashes with existing chain ids ${dstMol.chains.map { it.id }},"
+						+ "and no chain id resolver was provided"
+					)
 			}
 
 			val dstChain = Polymer.Chain(dstChainId)
@@ -279,6 +296,20 @@ fun Collection<Molecule>.combine(name: String, resolveChainIds: Boolean = false)
 					srcRes.atoms.map { atomMap.getBOrThrow(it) }
 				))
 			}
+		}
+	}
+
+	// generate chains for any non-polymer molecules if needed
+	if (dstMol is Polymer && chainGenerator != null) {
+
+		// prep the chain id generator inside the chain generator
+		chainGenerator.setUsedIds(dstMol.chains.map { it.id })
+
+		for (srcMol in filter { it !is Polymer }) {
+			dstMol.chains.add(chainGenerator.generateChain(
+				srcMol,
+				srcMol.atoms.map { atomMap.getBOrThrow(it) }
+			))
 		}
 	}
 

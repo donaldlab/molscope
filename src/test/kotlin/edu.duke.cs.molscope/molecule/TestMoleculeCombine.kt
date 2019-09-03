@@ -194,8 +194,79 @@ class TestMoleculeCombine : SharedSpec({
 		val srcChain2 = Polymer.Chain("A").also { mol2.chains.add(it) }
 		val srcRes2 = Polymer.Residue("1", "RES", listOf(srcC2, srcN2)).also { srcChain2.residues.add(it) }
 
-		val (combined, atomMap) = listOf(mol1, mol2).combine("combined", resolveChainIds = true)
+		val generator = object : ChainIdGenerator {
+			override fun setUsedIds(ids: Collection<String>) {}
+			override fun generateId() = "B"
+		}
+		val (combined, atomMap) = listOf(mol1, mol2).combine("combined", generator)
 
 		(combined as Polymer).chains.map { it.id } shouldContainExactly listOf("A", "B")
+	}
+
+	test("one small, one polymer") {
+
+		val mol1 = Molecule("small1")
+		val srcC1 = Atom(Element.Carbon, "C", 1.0, 2.0, 3.0).also { mol1.atoms.add(it) }
+		val srcN1 = Atom(Element.Nitrogen, "N", 4.0, 5.0, 6.0).also { mol1.atoms.add(it) }
+		mol1.bonds.add(srcC1, srcN1)
+
+		val mol2 = Polymer("poly1")
+		val srcC2 = Atom(Element.Carbon, "C", 11.0, 12.0, 13.0).also { mol2.atoms.add(it) }
+		val srcN2 = Atom(Element.Nitrogen, "N", 14.0, 15.0, 16.0).also { mol2.atoms.add(it) }
+		mol2.bonds.add(srcC2, srcN2)
+		val srcChain2 = Polymer.Chain("A").also { mol2.chains.add(it) }
+		val srcRes2 = Polymer.Residue("1", "RES", listOf(srcC2, srcN2)).also { srcChain2.residues.add(it) }
+
+		val (combined, atomMap) = listOf(mol1, mol2).combine("combined")
+
+		combined as Polymer
+		combined.chains.map { it.id } shouldBe listOf("A")
+		combined.chains.find { it.id == "A" }!!.apply {
+			residues.size shouldBe 1
+			residues.sumBy { it.atoms.size } shouldBe mol2.atoms.size
+		}
+		combined.atoms.size shouldBe mol1.atoms.size + mol2.atoms.size
+	}
+
+	test("one small, one polymer, generate chain") {
+
+		val mol1 = Molecule("small1")
+		val srcC1 = Atom(Element.Carbon, "C", 1.0, 2.0, 3.0).also { mol1.atoms.add(it) }
+		val srcN1 = Atom(Element.Nitrogen, "N", 4.0, 5.0, 6.0).also { mol1.atoms.add(it) }
+		mol1.bonds.add(srcC1, srcN1)
+
+		val mol2 = Polymer("poly1")
+		val srcC2 = Atom(Element.Carbon, "C", 11.0, 12.0, 13.0).also { mol2.atoms.add(it) }
+		val srcN2 = Atom(Element.Nitrogen, "N", 14.0, 15.0, 16.0).also { mol2.atoms.add(it) }
+		mol2.bonds.add(srcC2, srcN2)
+		val srcChain2 = Polymer.Chain("A").also { mol2.chains.add(it) }
+		val srcRes2 = Polymer.Residue("1", "RES", listOf(srcC2, srcN2)).also { srcChain2.residues.add(it) }
+
+		val generator = object : ChainGenerator {
+			override fun setUsedIds(ids: Collection<String>) {}
+			override fun generateChain(nonPolymerMol: Molecule, polymerAtoms: List<Atom>) =
+				Polymer.Chain("B").apply {
+					residues.add(Polymer.Residue(
+						"1",
+						"MOL",
+						polymerAtoms
+					))
+				}
+		}
+		val (combined, atomMap) = listOf(mol1, mol2).combine("combined", chainGenerator=generator)
+
+		combined as Polymer
+		combined.chains.map { it.id } shouldBe listOf("A", "B")
+		combined.chains.find { it.id == "A" }!!.apply {
+			residues.size shouldBe 1
+			residues.sumBy { it.atoms.size } shouldBe mol2.atoms.size
+		}
+		combined.chains.find { it.id == "B" }!!.apply {
+			residues.size shouldBe 1
+			residues.first().apply {
+				atoms.size shouldBe mol1.atoms.size
+			}
+		}
+		combined.atoms.size shouldBe mol1.atoms.size + mol2.atoms.size
 	}
 })
