@@ -5,6 +5,7 @@ import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.tools.SIZE_BYTES
 import cuchaz.kludge.tools.diff
 import cuchaz.kludge.vulkan.*
+import edu.duke.cs.molscope.shaders.Shaders
 import edu.duke.cs.molscope.view.ColorsMode
 import org.joml.AABBf
 import java.nio.ByteBuffer

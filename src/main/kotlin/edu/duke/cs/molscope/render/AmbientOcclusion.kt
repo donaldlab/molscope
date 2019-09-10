@@ -3,6 +3,7 @@ package edu.duke.cs.molscope.render
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.vulkan.Queue
+import edu.duke.cs.molscope.shaders.Shaders
 import edu.duke.cs.molscope.tools.SphereGrid
 import org.joml.AABBf
 import kotlin.math.max

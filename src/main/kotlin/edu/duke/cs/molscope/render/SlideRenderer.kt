@@ -5,6 +5,7 @@ import cuchaz.kludge.vulkan.*
 import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.CameraCommand
 import edu.duke.cs.molscope.Slide
+import edu.duke.cs.molscope.shaders.Shaders
 import org.joml.Vector3f
 import java.nio.ByteBuffer
 import kotlin.reflect.KProperty
