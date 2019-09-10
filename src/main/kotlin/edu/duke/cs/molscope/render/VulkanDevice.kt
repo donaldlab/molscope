@@ -4,6 +4,7 @@ import cuchaz.kludge.tools.AutoCloser
 import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.tools.toFlagsString
 import cuchaz.kludge.vulkan.*
+import edu.duke.cs.molscope.Molscope
 
 
 class VulkanDevice(
@@ -17,18 +18,24 @@ class VulkanDevice(
 	// make the main vulkan instance with the extensions we need
 	val vulkan =
 		Vulkan(
-			extensionNames = setOf(Vulkan.DebugExtension) + vulkanExtensions,
+			extensionNames = vulkanExtensions.toMutableSet().apply {
+				if (Molscope.dev) {
+					add(Vulkan.DebugExtension)
+				}
+			},
 			layerNames = setOf(Vulkan.StandardValidationLayer)
 		)
 		.autoClose()
 		.apply {
-			// listen to problems from vulkan
-			debugMessenger(
-				severities = IntFlags.of(DebugMessenger.Severity.Error, DebugMessenger.Severity.Warning)
-			) { severity, type, msg ->
-				println("VULKAN: ${severity.toFlagsString()} ${type.toFlagsString()} $msg")
-				Exception("Stack Trace").printStackTrace(System.out)
-			}.autoClose()
+			if (Molscope.dev) {
+				// listen to problems from vulkan
+				debugMessenger(
+					severities = IntFlags.of(DebugMessenger.Severity.Error, DebugMessenger.Severity.Warning)
+				) { severity, type, msg ->
+					println("VULKAN: ${severity.toFlagsString()} ${type.toFlagsString()} $msg")
+					Exception("Stack Trace").printStackTrace(System.out)
+				}.autoClose()
+			}
 		}
 
 	// pick a physical device: prefer discrete GPU
