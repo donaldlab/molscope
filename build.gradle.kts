@@ -36,6 +36,22 @@ tasks.withType<KotlinCompile> {
 	}
 }
 
+// Make a value that can be set after processResources has configured itself.
+// ie, the value can be set after we know about the task graph,
+// and we can tell if this a dev or release build
+class ResourceVal<T>(var value: T) {
+	override fun toString() = value.toString()
+}
+val isDev = ResourceVal(true)
+
+gradle.taskGraph.whenReady {
+
+	// assume we're doing a release build if we're calling the jar task
+	if (hasTask(":jar")) {
+		isDev.value = false
+	}
+}
+
 tasks {
 
 	val compileShaders by creating {
@@ -77,8 +93,17 @@ tasks {
 			include("**/build.properties")
 			expand(
 				"version" to "$version",
-				"dev" to "true" // TEMP: set to false in "release" builds
+				"dev" to isDev
 			)
+		}
+	}
+
+	// add documentation to the jar file
+	jar {
+		into("") { // project root
+			from("readme.md")
+			from("LICENSE.txt")
+			// TODO: contributing.md?
 		}
 	}
 }
