@@ -143,8 +143,10 @@ class NavigationTool : SlideFeature {
 	private fun click(slidewin: SlideCommands) {
 
 		// reset the camera rotator
-		val cameraRotator = cameraRotator ?: slidewin.camera.Rotator().apply { cameraRotator = this }
-		cameraRotator.capture()
+		if (cameraRotator?.camera != slidewin.camera) {
+			cameraRotator = slidewin.camera.Rotator()
+		}
+		cameraRotator?.capture()
 
 		// get the normalized click dist from center
 		val w = slidewin.extent.width.toFloat()
