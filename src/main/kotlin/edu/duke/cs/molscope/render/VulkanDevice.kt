@@ -23,7 +23,11 @@ class VulkanDevice(
 					add(Vulkan.DebugExtension)
 				}
 			},
-			layerNames = setOf(Vulkan.StandardValidationLayer)
+			layerNames = if (Molscope.dev) {
+				setOf(Vulkan.StandardValidationLayer)
+			} else {
+				emptySet()
+			}
 		)
 		.autoClose()
 		.apply {
