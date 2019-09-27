@@ -81,7 +81,7 @@ open class Molecule(
 		internal val adjacency = IdentityHashMap<Atom,MutableSet<Atom>>()
 
 		fun bondedAtoms(atom: Atom): MutableSet<Atom> =
-			adjacency.computeIfAbsent(atom) { Collections.newSetFromMap(IdentityHashMap()) }
+			adjacency.getOrPut(atom) { Atom.setIdentity() }
 
 		fun bondedAtomsSorted(atom: Atom): List<Atom> =
 			bondedAtoms(atom).sortedBy { it.name }
@@ -147,6 +147,21 @@ data class Atom(
 		this(element, name, Vector3d(x, y, z))
 
 	override fun toString() = name
+
+	companion object {
+
+		/**
+		 * Creates a map that compares atoms using === rather than ==/equals()
+		 */
+		fun <T> mapIdentity(): MutableMap<Atom,T> =
+			IdentityHashMap<Atom,T>()
+
+		/**
+		 * Creates a set that compares atoms using === rather than ==/equals()
+		 */
+		fun setIdentity(): MutableSet<Atom> =
+			Collections.newSetFromMap(mapIdentity<Boolean>())
+	}
 }
 
 
