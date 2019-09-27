@@ -28,3 +28,6 @@ inline fun <R> Commands.styleDisabledIf(isDisabled: Boolean, block: () -> R): R 
 	}
 	return ret
 }
+
+inline fun <R> Commands.styleEnabledIf(isEnabled: Boolean, block: () -> R) =
+	styleDisabledIf(!isEnabled, block)
