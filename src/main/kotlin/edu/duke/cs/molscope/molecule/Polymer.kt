@@ -21,6 +21,10 @@ class Polymer(
 			this.atoms.addAll(atoms)
 		}
 
+		fun findAtomOrThrow(name: String) =
+			atoms.find { it.name == name }
+				?: throw NoSuchElementException("no atom with name=$name")
+
 		override fun toString() = "$id:$type"
 	}
 
@@ -29,6 +33,11 @@ class Polymer(
 		val id: String
 	) {
 		val residues: MutableList<Residue> = ArrayList()
+
+		fun findResidueOrThrow(id: String) =
+			residues
+				.find { it.id == id }
+				?: throw NoSuchElementException("no residue with id=$id")
 
 		override fun toString() = id
 	}
@@ -59,6 +68,11 @@ class Polymer(
 			dst.chains.add(dstChain)
 		}
 	}
+
+	fun findChainOrThrow(id: String) =
+		chains
+			.find { it.id == id }
+			?: throw NoSuchElementException("no chain with id=$id")
 
 	fun findResidue(atom: Atom) =
 		chains
