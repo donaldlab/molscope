@@ -135,6 +135,89 @@ open class Molecule(
 			}
 	}
 	val bonds = Bonds()
+
+	/**
+	 * Crawl the bond network in depth-first order starting at the source atom.
+	 */
+	fun dfs(
+		source: Atom,
+		visitSource: Boolean = false,
+		shouldVisit: (fromAtom: Atom, toAtom: Atom, dist: Int) -> Boolean = { _, _, _ -> true }
+	) = search(source, visitSource, shouldVisit, SearchType.DFS)
+
+	/**
+	 * Crawl the bond network in breadth-first order starting at the source atom.
+	 */
+	fun bfs(
+		source: Atom,
+		visitSource: Boolean = false,
+		shouldVisit: (fromAtom: Atom, toAtom: Atom, dist: Int) -> Boolean = { _, _, _ -> true }
+	) = search(source, visitSource, shouldVisit, SearchType.BFS)
+
+	data class Searched(val atom: Atom, val dist: Int)
+
+	private enum class SearchType {
+		DFS,
+		BFS
+	}
+
+	private fun search(
+		source: Atom,
+		visitSource: Boolean = false,
+		shouldVisit: (fromAtom: Atom, toAtom: Atom, dist: Int) -> Boolean = { _, _, _ -> true },
+		searchType: SearchType
+	) = object : Iterable<Searched> {
+
+		override fun iterator() = object : Iterator<Searched> {
+
+			// track the atom visitation schedule
+			val toVisit = ArrayDeque<Searched>()
+			val visitScheduled = Atom.setIdentity()
+
+			fun scheduleVisit(atom: Atom, dist: Int) {
+				toVisit.add(Searched(atom, dist))
+				visitScheduled.add(atom)
+			}
+
+			override fun hasNext() = toVisit.isNotEmpty()
+
+			override fun next(): Searched {
+
+				// take the next step
+				val step = when (searchType) {
+					SearchType.DFS -> toVisit.pollLast()
+					SearchType.BFS -> toVisit.pollFirst()
+				} ?: throw NoSuchElementException("no more atoms to visit")
+
+				// schedule visits to neighbors
+				// NOTE: use the sorted atoms, so search order is deterministic
+				val nextDist = step.dist + 1
+				val bondedAtoms = when (searchType) {
+					// reverse the DFS neighbor order, so the pollLast() grabs in forward order
+					SearchType.DFS -> bonds.bondedAtomsSorted(step.atom).reversed()
+					SearchType.BFS -> bonds.bondedAtomsSorted(step.atom)
+				}
+				for (bondedAtom in bondedAtoms) {
+					if (bondedAtom !in visitScheduled && shouldVisit(step.atom, bondedAtom, nextDist)) {
+						scheduleVisit(bondedAtom, nextDist)
+					}
+				}
+
+				return step
+			}
+
+			init {
+
+				// seed with the source atom
+				scheduleVisit(source, 0)
+
+				// skip the source atom, if need
+				if (!visitSource) {
+					next()
+				}
+			}
+		}
+	}
 }
 
 data class Atom(
