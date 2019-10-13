@@ -8,8 +8,8 @@ import java.util.*
  */
 class AtomMap {
 
-	private val a2b = Atom.mapIdentity<Atom>()
-	private val b2a = Atom.mapIdentity<Atom>()
+	private val a2b = Atom.identityMap<Atom>()
+	private val b2a = Atom.identityMap<Atom>()
 
 	fun add(a: Atom, b: Atom) {
 		a2b[a] = b

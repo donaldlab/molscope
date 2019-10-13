@@ -1,5 +1,7 @@
 package edu.duke.cs.molscope.tools
 
+import java.util.*
+
 
 val Boolean.toYesNo get() = if (this) "Yes" else "No"
 
@@ -19,3 +21,7 @@ fun assert(lazyMessage: () -> Any = { "Assertion failed" }, lazyCondition: () ->
 		}
 	}
 }
+
+
+fun <T> identityHashSet(): MutableSet<T> =
+	Collections.newSetFromMap(IdentityHashMap<T,Boolean>())

@@ -81,7 +81,7 @@ open class Molecule(
 		internal val adjacency = IdentityHashMap<Atom,MutableSet<Atom>>()
 
 		fun bondedAtoms(atom: Atom): MutableSet<Atom> =
-			adjacency.getOrPut(atom) { Atom.setIdentity() }
+			adjacency.getOrPut(atom) { Atom.identitySet() }
 
 		fun bondedAtomsSorted(atom: Atom): List<Atom> =
 			bondedAtoms(atom).sortedBy { it.name }
@@ -172,7 +172,7 @@ open class Molecule(
 
 			// track the atom visitation schedule
 			val toVisit = ArrayDeque<Searched>()
-			val visitScheduled = Atom.setIdentity()
+			val visitScheduled = Atom.identitySet()
 
 			fun scheduleVisit(atom: Atom, dist: Int) {
 				toVisit.add(Searched(atom, dist))
@@ -236,16 +236,26 @@ data class Atom(
 		/**
 		 * Creates a map that compares atoms using === rather than ==/equals()
 		 */
-		fun <T> mapIdentity(): MutableMap<Atom,T> =
+		fun <T> identityMap(): MutableMap<Atom,T> =
 			IdentityHashMap<Atom,T>()
 
 		/**
 		 * Creates a set that compares atoms using === rather than ==/equals()
 		 */
-		fun setIdentity(): MutableSet<Atom> =
-			Collections.newSetFromMap(mapIdentity<Boolean>())
+		fun identitySet(): MutableSet<Atom> =
+			Collections.newSetFromMap(identityMap<Boolean>())
+
+		fun identitySetOf(vararg atoms: Atom): MutableSet<Atom> =
+			identitySet().apply {
+				addAll(atoms)
+			}
 	}
 }
+
+fun Collection<Atom>.toIdentitySet() =
+	Atom.identitySet().apply {
+		addAll(this@toIdentitySet)
+	}
 
 
 /**
