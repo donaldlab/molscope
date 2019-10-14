@@ -257,6 +257,35 @@ fun Collection<Atom>.toIdentitySet() =
 		addAll(this@toIdentitySet)
 	}
 
+fun Set<Atom>.union(other: Set<Atom>) =
+	Atom.identitySet().apply {
+		addAll(this@union)
+		addAll(other)
+	}
+
+fun Set<Atom>.intersection(other: Set<Atom>) =
+	Atom.identitySet().apply {
+		addAll(this@intersection)
+		retainAll(other)
+	}
+
+fun Iterable<Set<Atom>>.union() =
+	Atom.identitySet().apply {
+		for (set in this@union) {
+			addAll(set)
+		}
+	}
+
+fun Iterable<Set<Atom>>.intersection() =
+	Atom.identitySet().apply {
+		val list = this@intersection.toList()
+		if (list.isNotEmpty()) {
+			addAll(list[0])
+			for (i in 1 until list.size) {
+				retainAll(list[i])
+			}
+		}
+	}
 
 /**
  * A pair of atoms that defines equality by atom identity (ie ===),
