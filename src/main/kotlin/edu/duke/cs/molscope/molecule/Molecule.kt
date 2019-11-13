@@ -71,6 +71,11 @@ open class Molecule(
 				bondedAtoms.remove(atom)
 			}
 		}
+
+		fun findOrThrow(name: String) =
+			list
+				.find { it.name == name }
+				?: throw NoSuchElementException("no atom with name $name")
 	}
 	val atoms = Atoms()
 

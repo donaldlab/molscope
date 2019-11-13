@@ -25,3 +25,13 @@ fun assert(lazyMessage: () -> Any = { "Assertion failed" }, lazyCondition: () ->
 
 fun <T> identityHashSet(): MutableSet<T> =
 	Collections.newSetFromMap(IdentityHashMap<T,Boolean>())
+
+fun <K,V> identityHashMapOf(vararg pairs: Pair<K,V>) =
+	IdentityHashMap<K,V>().apply {
+		putAll(pairs)
+	}
+
+fun <T> identityHashSetOf(vararg values: T) =
+	identityHashSet<T>().apply {
+		addAll(values)
+	}
