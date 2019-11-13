@@ -23,9 +23,9 @@ class DevFps : WindowFeature {
 	override fun gui(imgui: Commands, win: WindowCommands) = imgui.run {
 
 		if (pOpen.value) {
-			begin("FPS", pOpen)
-			text("%.1f".format(Imgui.io.frameRate))
-			end()
+			window("FPS", pOpen) {
+				text("%.1f".format(Imgui.io.frameRate))
+			}
 		}
 	}
 }

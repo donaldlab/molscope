@@ -28,13 +28,12 @@ class AboutMolscope : WindowFeature {
 			openPopup(popupId)
 		}
 
-		if (beginPopup(popupId)) {
+		popup(popupId) {
 			text(Molscope.name)
 			text("v${Molscope.version}")
 			spacing()
 			text("Developed by the Donald Lab")
 			text("at Duke University")
-			endPopup()
 		}
 	}
 }

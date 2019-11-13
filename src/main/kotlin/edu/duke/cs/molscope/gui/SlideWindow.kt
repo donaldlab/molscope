@@ -273,7 +273,7 @@ internal class SlideWindow(
 				rendererInfo.renderer.cursorEffect = null
 			}
 		}
-		if (beginPopupContextItem(ContextMenu.id)) {
+		popupContextItem(ContextMenu.id) {
 
 			if (contextMenu == null) {
 				val contextMenu = ContextMenu()
@@ -296,7 +296,6 @@ internal class SlideWindow(
 
 			// render the context menu if we have one
 			contextMenu?.render(imgui)
-			endPopup()
 		}
 
 		end()

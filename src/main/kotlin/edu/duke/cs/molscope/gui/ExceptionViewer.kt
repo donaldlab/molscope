@@ -42,27 +42,26 @@ class ExceptionViewer {
 
 	fun gui(imgui: Commands) = imgui.run {
 		if (pOpen.value) {
-			begin("Exceptions", pOpen, IntFlags.of(Commands.BeginFlags.NoResize))
+			window("Exceptions", pOpen, IntFlags.of(Commands.BeginFlags.NoResize)) {
 
-			val buf = textBuffer
-			if (buf != null) {
-				inputTextMultiline(
-					"",
-					buf,
-					600f, 400f,
-					IntFlags.of(Commands.InputTextFlags.ReadOnly)
-				)
-				// yes, the horizontal scroll bar doesn't appear automatically for multiline input text widgets
-				// this is an ongoing enhancement in ImGUI, but I wouldn't wait for it
-			} else {
-				text("No exceptions")
+				val buf = textBuffer
+				if (buf != null) {
+					inputTextMultiline(
+						"",
+						buf,
+						600f, 400f,
+						IntFlags.of(Commands.InputTextFlags.ReadOnly)
+					)
+					// yes, the horizontal scroll bar doesn't appear automatically for multiline input text widgets
+					// this is an ongoing enhancement in ImGUI, but I wouldn't wait for it
+				} else {
+					text("No exceptions")
+				}
+
+				if (button("Clear")) {
+					clear()
+				}
 			}
-
-			if (button("Clear")) {
-				clear()
-			}
-
-			end()
 		}
 	}
 }

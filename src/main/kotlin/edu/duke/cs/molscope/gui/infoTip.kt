@@ -22,15 +22,15 @@ fun Commands.infoTip(block: () -> Unit) {
 		ColorsMode.Light -> ColorRGBA.Int(220, 220, 220)
 	})
 
-	beginChild(
+	child(
 		"infoTip-${nextId++}",
 		width = 17f,
 		height = 18f,
 		border = true,
 		flags= IntFlags.of(Commands.BeginFlags.NoScrollbar)
-	)
-	text("i")
-	endChild()
+	) {
+		text("i")
+	}
 
 	popStyleVar(2)
 	popStyleColor(3)

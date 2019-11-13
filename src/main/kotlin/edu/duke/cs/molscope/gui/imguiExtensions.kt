@@ -31,3 +31,28 @@ inline fun <R> Commands.styleDisabledIf(isDisabled: Boolean, block: () -> R): R 
 
 inline fun <R> Commands.styleEnabledIf(isEnabled: Boolean, block: () -> R) =
 	styleDisabledIf(!isEnabled, block)
+
+
+interface WithColumns {
+	fun column(width: Float? = null, block: () -> Unit)
+}
+fun Commands.columns(num: Int, border: Boolean = false, block: WithColumns.() -> Unit) {
+	columns(num, border = border)
+	try {
+		var offset = 0f
+		var i = 0
+		object : WithColumns {
+			override fun column(width: Float?, block: () -> Unit) {
+				child("column$i", block = block)
+				i += 1
+				if (width != null) {
+					offset += width
+					setColumnOffset(i, offset)
+				}
+				nextColumn()
+			}
+		}.block()
+	} finally {
+		columns(1)
+	}
+}

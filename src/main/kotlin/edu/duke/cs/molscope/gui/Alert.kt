@@ -22,7 +22,7 @@ class Alert {
 
 		val text = text ?: return
 
-		if (beginPopupModal(id, null, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))) {
+		popupModal(id, null, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize)) {
 
 			text(text)
 
@@ -32,8 +32,6 @@ class Alert {
 				this@Alert.text = null
 				closeCurrentPopup()
 			}
-
-			endPopup()
 		}
 	}
 }

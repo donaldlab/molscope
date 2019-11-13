@@ -57,13 +57,12 @@ class NavigationTool : SlideFeature {
 			whenOpen = {
 
 				// draw the window
-				begin("Navigator##${slide.name}", winState.pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
+				window("Navigator##${slide.name}", winState.pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize)) {
 
-				// show camera properties
-				sliderFloat("Magnification", Ref.of(slidewin.camera::magnification), 1f, 200f, "%.1fx", power=4f)
-				sliderFloat("View Distance", Ref.of(slidewin.camera::viewDistance), 1f, 400f, "%.1f", power=4f)
-
-				end()
+					// show camera properties
+					sliderFloat("Magnification", Ref.of(slidewin.camera::magnification), 1f, 200f, "%.1fx", power=4f)
+					sliderFloat("View Distance", Ref.of(slidewin.camera::viewDistance), 1f, 400f, "%.1f", power=4f)
+				}
 			},
 			onClose = {
 

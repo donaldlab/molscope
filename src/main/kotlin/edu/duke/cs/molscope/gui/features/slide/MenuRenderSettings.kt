@@ -35,16 +35,15 @@ class MenuRenderSettings(private val initialSettings: RenderSettings) : SlideFea
 
 		if (pOpen.value) {
 
-			begin("Render Settings##${slide.name}", pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize))
+			window("Render Settings##${slide.name}", pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize)) {
 
-			// make sliders for the render settings
-			sliderFloat("Color", Ref.of(slidewin.renderSettings::colorWeight), 0f, 1f, "%.2f")
-			sliderFloat("Shading", Ref.of(slidewin.renderSettings::shadingWeight), 0f, 2f, "%.2f")
-			sliderFloat("Light Intensity", Ref.of(slidewin.renderSettings::lightWeight), 0f, 4f, "%.2f")
-			sliderFloat("Depth Fade", Ref.of(slidewin.renderSettings::depthWeight), 0f, 1f, "%.2f")
-			sliderFloat("Ambient Occlusion", Ref.of(slidewin.renderSettings::ambientOcclusionWeight), 0f, 4f, "%.2f")
-
-			end()
+				// make sliders for the render settings
+				sliderFloat("Color", Ref.of(slidewin.renderSettings::colorWeight), 0f, 1f, "%.2f")
+				sliderFloat("Shading", Ref.of(slidewin.renderSettings::shadingWeight), 0f, 2f, "%.2f")
+				sliderFloat("Light Intensity", Ref.of(slidewin.renderSettings::lightWeight), 0f, 4f, "%.2f")
+				sliderFloat("Depth Fade", Ref.of(slidewin.renderSettings::depthWeight), 0f, 1f, "%.2f")
+				sliderFloat("Ambient Occlusion", Ref.of(slidewin.renderSettings::ambientOcclusionWeight), 0f, 4f, "%.2f")
+			}
 		}
 	}
 }
