@@ -35,3 +35,7 @@ fun <T> identityHashSetOf(vararg values: T) =
 	identityHashSet<T>().apply {
 		addAll(values)
 	}
+
+fun <T,K,V> Iterable<T>.associateIdentity(transform: (T) -> Pair<K,V>): Map<K,V> {
+	return associateTo(IdentityHashMap<K,V>(), transform)
+}

@@ -81,4 +81,15 @@ class Polymer(
 
 	fun findResidueOrThrow(atom: Atom) = findResidue(atom)
 		?: throw NoSuchElementException("atom ${atom.name} was not found in any residue")
+
+	fun findChainAndResidue(atom: Atom): Pair<Chain,Residue>? {
+		for (chain in chains) {
+			for (res in chain.residues) {
+				if (atom in res.atoms) {
+					return chain to res
+				}
+			}
+		}
+		return null
+	}
 }
