@@ -23,7 +23,7 @@ open class Molecule(
 
 	override fun toString() = name + (type?.let { ": $it" } ?: "")
 
-	open fun copy() = Molecule(name).apply {
+	open fun copy() = Molecule(name, type).apply {
 		val src = this@Molecule
 		val dst = this@apply
 		src.copyTo(dst)
@@ -222,6 +222,72 @@ open class Molecule(
 				}
 			}
 		}
+	}
+
+	override fun hashCode(): Int {
+
+		var hash = 0
+
+		hash = hash xor name.hashCode()
+		hash = hash xor type.hashCode()
+
+		/*
+		 * This hash code should be sensitive to changes in atom names,
+		 * positions, and bonds, but not orderings of internal data structures
+		 * like lists.
+		 */
+		for (atom in atoms) {
+			hash = hash xor atom.hashCode()
+			for (bondedAtom in bonds.bondedAtoms(atom)) {
+				hash = hash xor bondedAtom.hashCode()
+			}
+		}
+
+		return hash
+	}
+
+	override fun equals(other: Any?): Boolean {
+
+		// quick easy checks first
+
+		if (this === other) {
+			return true
+		}
+
+		if (other !is Molecule) {
+			return false
+		}
+
+		if (this.name != other.name) {
+			return false
+		}
+		if (this.type != other.type) {
+			return false
+		}
+
+		if (this.atoms.size != other.atoms.size) {
+			return false
+		}
+
+		// get a quick lookup table for the other atoms
+		// NOTE: Don't use an identity map here! We need to use the Atom.equals() method.
+		val otherAtoms = other.atoms.associateWith { it }
+
+		// now check all the atoms
+		for (thisAtom in this.atoms) {
+
+			// try to find a matching atom in the other mol
+			val otherAtom = otherAtoms[thisAtom] ?: return false
+
+			// check the bonds too
+			// (convert the bonded atoms sets from identity sets to regular sets, so equals() works on the atom value here)
+			if (this.bonds.adjacency[thisAtom]?.toSet() != other.bonds.adjacency[otherAtom]?.toSet()) {
+				return false
+			}
+		}
+
+		// all is well
+		return true
 	}
 }
 
