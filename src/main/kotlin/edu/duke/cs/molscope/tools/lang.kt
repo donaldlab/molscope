@@ -36,14 +36,14 @@ fun <T> identityHashSetOf(vararg values: T) =
 		addAll(values)
 	}
 
-fun <T,K,V> Iterable<T>.associateIdentity(transform: (T) -> Pair<K,V>): Map<K,V> {
+fun <T,K,V> Iterable<T>.associateIdentity(transform: (T) -> Pair<K,V>): MutableMap<K,V> {
 	return associateTo(IdentityHashMap<K,V>(), transform)
 }
 
-fun <K1,K2,V> Map<K1,V>.mapKeysIdentity(transform: (Map.Entry<K1,V>) -> K2): Map<K2,V> {
+fun <K1,K2,V> Map<K1,V>.mapKeysIdentity(transform: (Map.Entry<K1,V>) -> K2): MutableMap<K2,V> {
 	return mapKeysTo(IdentityHashMap<K2,V>(), transform)
 }
 
-fun <K,V1,V2> Map<K,V1>.mapValuesIdentity(transform: (Map.Entry<K,V1>) -> V2): Map<K,V2> {
+fun <K,V1,V2> Map<K,V1>.mapValuesIdentity(transform: (Map.Entry<K,V1>) -> V2): MutableMap<K,V2> {
 	return mapValuesTo(IdentityHashMap<K,V2>(), transform)
 }
