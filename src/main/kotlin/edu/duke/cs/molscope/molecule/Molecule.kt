@@ -289,6 +289,67 @@ open class Molecule(
 		// all is well
 		return true
 	}
+
+	class DuplicateAtomNameException(val id: String)
+		: IllegalArgumentException("Atoms have duplicate names: $id")
+
+	/**
+	 * Creates an atom map from this molecule to another molecule, assuming each atom name is unique.
+	 * If the molecules are polymers, atom names need only be unique within a single residue.
+	 */
+	fun mapAtomsByNameTo(other: Molecule): AtomMap {
+
+		fun Atom.id(mol: Molecule): String {
+			// TODO: findResidue could be noticeably slow here?
+			val res = (mol as? Polymer)?.findResidue(this)
+			return if (res != null) {
+				"$name@${res.id}"
+			} else {
+				name
+			}
+		}
+
+		// build the lookup table, but fail loudly if we get an id collision
+		val lookup = HashMap<String,Atom>()
+		for (otherAtom in other.atoms) {
+			val id = otherAtom.id(other)
+			if (id in lookup) {
+				throw DuplicateAtomNameException(id)
+			}
+			lookup[id] = otherAtom
+		}
+
+		val map = AtomMap()
+		for (thisAtom in this.atoms) {
+			val otherAtom = lookup[thisAtom.id(this)] ?: continue
+			map.add(thisAtom, otherAtom)
+		}
+		return map
+	}
+
+	/**
+	 * Creates an atom map from this molecule to another molecule,
+	 * for only the atoms with identical values (ie, name, element, coordinates).
+	 * Non-matching atoms will not be mapped.
+	 */
+	fun mapAtomsByValueTo(other: Molecule): AtomMap {
+
+		val map = AtomMap()
+
+		// make a by-value lookup table
+		val lookup = other.atoms.associateWith { it }
+
+		for (thisAtom in atoms) {
+
+			val otherAtom = lookup[thisAtom]
+			if (otherAtom != null) {
+				map.add(thisAtom, otherAtom)
+			}
+		}
+
+		return map
+	}
+
 }
 
 data class Atom(
