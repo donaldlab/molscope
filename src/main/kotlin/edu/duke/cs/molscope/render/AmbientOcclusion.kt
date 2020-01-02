@@ -398,11 +398,11 @@ internal class OcclusionCalculator(
 					images = listOf(
 						occlusionImage.image.barrier(
 							dstAccess = IntFlags.of(Access.ShaderRead, Access.ShaderWrite),
-							newLayout = Image.Layout.General
+							newLayout = Image.Layout.TransferDstOptimal
 						)
 					)
 				)
-				clearImage(occlusionImage.image, Image.Layout.General, ClearValue.Color.Int(0, 0, 0, 0))
+				clearImage(occlusionImage.image, Image.Layout.TransferDstOptimal, ClearValue.Color.Int(0, 0, 0, 0))
 			}
 			queue.waitForIdle()
 		}
