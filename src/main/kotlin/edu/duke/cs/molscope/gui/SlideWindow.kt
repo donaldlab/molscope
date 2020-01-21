@@ -27,9 +27,6 @@ internal class SlideWindow(
 		val renderer: SlideRenderer,
 		var imageDesc: Imgui.ImageDescriptor
 	) {
-
-		var cameraRotator = renderer.camera.Rotator()
-
 		init {
 			// if we already have an occlusion field, update the renderer right away
 			occlusionField?.updateDescriptorSet(renderer)
@@ -162,6 +159,10 @@ internal class SlideWindow(
 		override var mouseWheelDelta = 0f
 
 		override val camera get() = rendererInfoOrThrow.renderer.camera
+
+		override fun loadImage(bytes: ByteArray) =
+			LoadedImage(queue, bytes.toBuffer())
+				.autoClose()
 	}
 
 	fun gui(imgui: Commands) = imgui.run {
@@ -217,6 +218,7 @@ internal class SlideWindow(
 		}
 
 		// track the window content area
+		// TODO: these cause a crash in windows!!! Invalid Memory Access, WTF?!?
 		getWindowContentRegionMin(contentMin)
 		getWindowContentRegionMax(contentMax)
 

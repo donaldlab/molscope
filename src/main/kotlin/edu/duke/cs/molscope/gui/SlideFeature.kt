@@ -6,6 +6,7 @@ import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.HasFeatureId
 import edu.duke.cs.molscope.render.Camera
+import edu.duke.cs.molscope.render.LoadedImage
 import edu.duke.cs.molscope.render.RenderEffect
 import edu.duke.cs.molscope.render.RenderSettings
 import org.joml.Vector2fc
@@ -61,4 +62,12 @@ interface SlideCommands {
 	val mouseWheelDelta: Float
 
 	val camera: Camera
+
+	/**
+	 * Loads an image for rendering.
+	 * The image and all associated resources will be automatically
+	 * cleaned up when the window is cleaned up, so callers will
+	 * not need to worry about cleaning up images loaded with this method.
+	 */
+	fun loadImage(bytes: ByteArray): LoadedImage
 }
