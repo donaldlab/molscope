@@ -1,6 +1,7 @@
 package edu.duke.cs.molscope.gui
 
 import cuchaz.kludge.imgui.Commands
+import edu.duke.cs.molscope.render.LoadedImage
 
 
 /**
@@ -55,4 +56,8 @@ fun Commands.columns(num: Int, border: Boolean = false, block: WithColumns.() ->
 	} finally {
 		columns(1)
 	}
+}
+
+fun Commands.image(img: LoadedImage) {
+	image(img.descriptor, img.width.toFloat(), img.height.toFloat())
 }

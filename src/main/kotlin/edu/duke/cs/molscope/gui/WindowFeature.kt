@@ -3,6 +3,7 @@ package edu.duke.cs.molscope.gui
 import cuchaz.kludge.imgui.Commands
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.features.HasFeatureId
+import edu.duke.cs.molscope.render.LoadedImage
 
 
 interface WindowFeature : HasFeatureId {
@@ -34,8 +35,17 @@ interface WindowFeature : HasFeatureId {
  * Should only access this from the window thread.
  */
 interface WindowCommands {
+
 	fun showExceptions(block: () -> Unit)
 	var shouldClose: Boolean
 	fun addSlide(slide: Slide)
 	fun removeSlide(slide: Slide): Boolean
+
+	/**
+	 * Loads an image for rendering.
+	 * The image and all associated resources will be automatically
+	 * cleaned up when the window is cleaned up, so callers will
+	 * not need to worry about cleaning up images loaded with this method.
+	 */
+	fun loadImage(bytes: ByteArray): LoadedImage
 }

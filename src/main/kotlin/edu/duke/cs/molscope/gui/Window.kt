@@ -16,8 +16,10 @@ import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.Features
 import edu.duke.cs.molscope.gui.features.win.DevFps
 import edu.duke.cs.molscope.gui.features.win.DevImguiDemo
+import edu.duke.cs.molscope.render.LoadedImage
 import edu.duke.cs.molscope.render.VulkanDevice
 import edu.duke.cs.molscope.render.WindowRenderer
+import edu.duke.cs.molscope.render.toBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -267,6 +269,10 @@ internal class WindowThread(
 
 		override fun addSlide(slide: Slide) = this@WindowThread.addSlide(slide)
 		override fun removeSlide(slide: Slide): Boolean = this@WindowThread.removeSlide(slide)
+
+		override fun loadImage(bytes: ByteArray) =
+			LoadedImage(graphicsQueue, bytes.toBuffer())
+				.autoClose()
 	}
 
 
