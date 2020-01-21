@@ -91,7 +91,7 @@ internal class SlideWindow(
 		rendererInfo.apply {
 
 			// update the background color based on settings
-			renderer.backgroundColor = backgroundColors[ColorsMode.current]!!
+			renderer.backgroundColor = backgroundColors.getValue(ColorsMode.current)
 
 			// gather all the renderables by type
 			val renderables = ViewRenderables(
@@ -120,6 +120,7 @@ internal class SlideWindow(
 			// get the occlusion field
 			// if we don't have one, we must not have any geometry either, so skip the render
 			val occlusionField = occlusionField ?: return false
+			occlusionField.active = rendererInfo.renderer.settings.ambientOcclusionWeight > 0f
 			if (occlusionField.needsProcessing) {
 				occlusionField.process()
 			}

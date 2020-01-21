@@ -768,7 +768,7 @@ class RenderSettings {
 	var lightWeight: Float by Dirtyable(1f)
 	var shadingWeight: Float by Dirtyable(1f)
 	var depthWeight: Float by Dirtyable(0.2f)
-	var ambientOcclusionWeight: Float by Dirtyable(1f)
+	var ambientOcclusionWeight: Float by Dirtyable(0f) // default to 0, so occlusion is off
 
 	var showOcclusionField: Boolean = false
 

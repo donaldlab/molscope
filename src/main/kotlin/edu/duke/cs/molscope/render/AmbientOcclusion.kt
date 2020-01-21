@@ -423,8 +423,17 @@ internal class OcclusionCalculator(
 
 		private var linesProcessed = 0
 
-		val processingProgress get() = linesProcessed.toDouble()/sphereGrid.size.toDouble()
-		val needsProcessing get() = linesProcessed < sphereGrid.size
+		var active: Boolean = false
+
+		val processingProgress get() =
+			if (active) {
+				linesProcessed.toDouble()/sphereGrid.size.toDouble()
+			} else {
+				1.0
+			}
+
+		val needsProcessing get() =
+			active && linesProcessed < sphereGrid.size
 
 		fun process() {
 
