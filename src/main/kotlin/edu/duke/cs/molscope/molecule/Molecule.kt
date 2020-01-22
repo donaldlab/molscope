@@ -21,7 +21,12 @@ open class Molecule(
 	// define a companion object so we can extent it
 	companion object;
 
-	override fun toString() = name + (type?.let { ": $it" } ?: "")
+	override fun toString() =
+		if (type == null || type == name) {
+			name
+		} else {
+			"$name ($type)"
+		}
 
 	open fun copy() = Molecule(name, type).apply {
 		val src = this@Molecule
