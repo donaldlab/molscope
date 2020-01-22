@@ -605,10 +605,14 @@ internal class SlideRenderer(
 				)
 			)
 			slide.views.forEachIndexed { i, view ->
-				view.spheres?.let { sphereRenderer.render(this, it, i) }
+				if (view.isVisible) {
+					view.spheres?.let { sphereRenderer.render(this, it, i) }
+				}
 			}
 			slide.views.forEachIndexed { i, view ->
-				view.cylinders?.let { cylinderRenderer.render(this, it, i) }
+				if (view.isVisible) {
+					view.cylinders?.let { cylinderRenderer.render(this, it, i) }
+				}
 			}
 			if (settings.showOcclusionField) {
 				occlusionRenderer.render(this, occlusionField)

@@ -19,6 +19,8 @@ class SpaceFilling(
 	val selector: MoleculeSelector = MoleculeSelectors.all
 ): MoleculeRenderView {
 
+	override var isVisible = true
+
 	var sel = selector(mol)
 		private set
 
