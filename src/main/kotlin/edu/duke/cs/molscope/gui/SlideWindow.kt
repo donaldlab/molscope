@@ -5,7 +5,6 @@ import cuchaz.kludge.imgui.Imgui
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.Slide
-import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.render.*
 import edu.duke.cs.molscope.tools.IdentityChangeTracker
 import edu.duke.cs.molscope.view.*
@@ -149,7 +148,7 @@ internal class SlideWindow(
 
 		override val renderSettings get() = rendererInfoOrThrow.renderer.settings
 		override val extent get() = rendererInfoOrThrow.renderer.extent
-		override val hoverEffects = HashMap<FeatureId,RenderEffect>()
+		override val hoverEffects = HoverEffects()
 
 		override var mouseTarget: ViewIndexed? = null
 		override var mouseLeftClick = false
@@ -268,9 +267,7 @@ internal class SlideWindow(
 			// update the cursor in the renderer
 			if (isItemHovered()) {
 				rendererInfo.renderer.cursorPos = commands.mouseOffset.toOffset()
-				// don't know how to pick which effect to use, or combine the multiple effects,
-				// so just pick one arbitrarily I guess...
-				rendererInfo.renderer.cursorEffect = commands.hoverEffects.values.firstOrNull()
+				rendererInfo.renderer.cursorEffect = commands.hoverEffects.get()
 			} else {
 				rendererInfo.renderer.cursorPos = null
 				rendererInfo.renderer.cursorEffect = null

@@ -10,6 +10,7 @@ import edu.duke.cs.molscope.gui.features.WindowState
 import edu.duke.cs.molscope.molecule.Atom
 import edu.duke.cs.molscope.molecule.Polymer
 import edu.duke.cs.molscope.render.Camera
+import edu.duke.cs.molscope.render.HoverEffects
 import edu.duke.cs.molscope.render.RenderEffect
 import edu.duke.cs.molscope.view.MoleculeRenderView
 import org.joml.Vector2fc
@@ -23,10 +24,9 @@ class NavigationTool : SlideFeature {
 	override val id = FeatureId("navigation")
 
 	private val winState = WindowState()
+	private var hoverEffects = null as HoverEffects.Writer?
 
 	private fun Slide.Locked.molViews() = views.mapNotNull { it as? MoleculeRenderView }
-
-	private fun List<MoleculeRenderView>.clearSelections() = forEach { it.renderEffects.clear() }
 
 	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
 		if (menuItem("Navigate")) {
@@ -35,8 +35,6 @@ class NavigationTool : SlideFeature {
 	}
 
 	override fun gui(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
-
-		val molViews = slide.molViews()
 
 		// handle mouse interactions, even if the window isn't open
 		if (slidewin.mouseLeftClick) {
@@ -52,7 +50,9 @@ class NavigationTool : SlideFeature {
 		winState.render(
 			onOpen = {
 				// add the hover effect
-				slidewin.hoverEffects[id] = hoverEffect
+				hoverEffects = slidewin.hoverEffects.writer().apply {
+					effect = hoverEffect
+				}
 			},
 			whenOpen = {
 
@@ -66,11 +66,9 @@ class NavigationTool : SlideFeature {
 			},
 			onClose = {
 
-				// remove the hover effect
-				slidewin.hoverEffects.remove(id)
-
-				// clear any leftover selections when the window closes
-				molViews.clearSelections()
+				// cleanup effects
+				hoverEffects?.close()
+				hoverEffects = null
 			}
 		)
 	}

@@ -44,65 +44,96 @@ fun ByteBuffer.put(effect: RenderEffect?) {
 
 class MoleculeRenderEffects(val mol: Molecule) {
 
-	private val effectsByAtom = IdentityHashMap<Atom,RenderEffect>()
+	inner class Writer : AutoCloseable {
+
+		val mol get() = this@MoleculeRenderEffects.mol
+
+		init {
+			writers.add(this)
+		}
+
+		override fun close() {
+			writers.remove(this)
+			sequence += 1
+		}
+
+		private val effectsByAtom = IdentityHashMap<Atom,RenderEffect>()
+
+		fun clear() {
+			if (effectsByAtom.isNotEmpty()) {
+				effectsByAtom.clear()
+				sequence += 1
+			}
+		}
+
+		operator fun set(atom: Atom, effect: RenderEffect) {
+			if (effectsByAtom[atom] != effect) {
+				effectsByAtom[atom] = effect
+				sequence += 1
+			}
+		}
+
+		operator fun set(atoms: Collection<Atom>, effect: RenderEffect) {
+			var isChanged = false
+			for (atom in atoms) {
+				if (effectsByAtom[atom] != effect) {
+					effectsByAtom[atom] = effect
+					isChanged = true
+				}
+			}
+			if (isChanged) {
+				sequence += 1
+			}
+		}
+
+		fun remove(atom: Atom) {
+			val oldVal = effectsByAtom.remove(atom)
+			if (oldVal != null) {
+				sequence += 1
+			}
+		}
+
+		fun remove(atoms: Collection<Atom>) {
+			var isChanged = false
+			for (atom in atoms) {
+				val oldVal = effectsByAtom.remove(atom)
+				if (oldVal != null) {
+					isChanged = true
+				}
+			}
+			if (isChanged) {
+				sequence += 1
+			}
+		}
+
+		operator fun set(selector: MoleculeSelector, effect: RenderEffect) {
+			set(selector(mol), effect)
+		}
+
+		fun remove(selector: MoleculeSelector) {
+			remove(selector(mol))
+		}
+
+		operator fun get(atom: Atom): RenderEffect? = effectsByAtom[atom]
+	}
+
+	private val writers = ArrayList<Writer>()
+
+	fun writer() = Writer()
 
 	var sequence: Int = 0
 		private set
 
-	fun clear() {
-		if (effectsByAtom.isNotEmpty()) {
-			effectsByAtom.clear()
-			sequence += 1
-		}
-	}
-
-	operator fun set(atom: Atom, effect: RenderEffect) {
-		if (effectsByAtom[atom] != effect) {
-			effectsByAtom[atom] = effect
-			sequence += 1
-		}
-	}
-
-	operator fun set(atoms: Collection<Atom>, effect: RenderEffect) {
-		var isChanged = false
-		for (atom in atoms) {
-			if (effectsByAtom[atom] != effect) {
-				effectsByAtom[atom] = effect
-				isChanged = true
+	/**
+	 * Gets the effect from the most recently-created writer that has set an effect
+	 */
+	operator fun get(atom: Atom): RenderEffect? {
+		for (i in (0 until writers.size).reversed()) {
+			val effect = writers[i][atom]
+			if (effect != null) {
+				return effect
 			}
 		}
-		if (isChanged) {
-			sequence += 1
-		}
+		return null
 	}
-
-	fun remove(atom: Atom) {
-		val oldVal = effectsByAtom.remove(atom)
-		if (oldVal != null) {
-			sequence += 1
-		}
-	}
-
-	fun remove(atoms: Collection<Atom>) {
-		var isChanged = false
-		for (atom in atoms) {
-			val oldVal = effectsByAtom.remove(atom)
-			if (oldVal != null) {
-				isChanged = true
-			}
-		}
-		if (isChanged) {
-			sequence += 1
-		}
-	}
-
-	operator fun set(selector: MoleculeSelector, effect: RenderEffect) {
-		set(selector(mol), effect)
-	}
-
-	fun remove(selector: MoleculeSelector) {
-		remove(selector(mol))
-	}
-
-	operator fun get(atom: Atom): RenderEffect? = effectsByAtom[atom]
 }

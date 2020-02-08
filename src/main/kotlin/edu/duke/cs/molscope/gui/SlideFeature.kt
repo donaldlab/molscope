@@ -3,12 +3,8 @@ package edu.duke.cs.molscope.gui
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.vulkan.Extent2D
 import edu.duke.cs.molscope.Slide
-import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.gui.features.HasFeatureId
-import edu.duke.cs.molscope.render.Camera
-import edu.duke.cs.molscope.render.LoadedImage
-import edu.duke.cs.molscope.render.RenderEffect
-import edu.duke.cs.molscope.render.RenderSettings
+import edu.duke.cs.molscope.render.*
 import org.joml.Vector2fc
 
 
@@ -51,7 +47,7 @@ interface SlideCommands {
 
 	val extent: Extent2D
 	val renderSettings: RenderSettings
-	val hoverEffects: MutableMap<FeatureId,RenderEffect>
+	val hoverEffects: HoverEffects
 
 	val mouseTarget: ViewIndexed?
 	val mouseLeftClick: Boolean
