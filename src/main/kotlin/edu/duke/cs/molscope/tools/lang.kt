@@ -23,6 +23,12 @@ fun assert(lazyMessage: () -> Any = { "Assertion failed" }, lazyCondition: () ->
 }
 
 
+fun <T> Collection<T>.toIdentitySet(): MutableSet<T> {
+	val out = identityHashSet<T>()
+	out.addAll(this)
+	return out
+}
+
 fun <T> identityHashSet(): MutableSet<T> =
 	Collections.newSetFromMap(IdentityHashMap<T,Boolean>())
 

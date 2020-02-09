@@ -16,8 +16,14 @@ import java.nio.ByteBuffer
 // TODO: optimize molecule transformations so we don't have to re-create the whole view for a large molecule?
 class SpaceFilling(
 	override val mol: Molecule,
-	val selector: MoleculeSelector = MoleculeSelectors.all
+	initialSelector: MoleculeSelector = MoleculeSelectors.all
 ): MoleculeRenderView {
+
+	override var selector = initialSelector
+		set(value) {
+			field = value
+			moleculeChanged()
+		}
 
 	override var isVisible = true
 

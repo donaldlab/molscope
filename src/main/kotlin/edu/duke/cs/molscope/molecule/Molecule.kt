@@ -424,6 +424,13 @@ fun Iterable<Set<Atom>>.intersection() =
 		}
 	}
 
+fun Collection<Atom>.allPairs(other: Collection<Atom>): List<AtomPair> =
+	flatMap { a1 ->
+		other.map { a2 ->
+			AtomPair(a1, a2)
+		}
+	}
+
 /**
  * A pair of atoms that defines equality by atom identity (ie ===),
  * and is insensitive to atom order.

@@ -6,6 +6,9 @@ typealias MoleculeSelector = (Molecule) -> List<Atom>
 
 object MoleculeSelectors {
 
+	/** Selects no atoms */
+	val none: MoleculeSelector = { mol -> emptyList() }
+
 	/** Selects all the atoms */
 	val all: MoleculeSelector = { mol -> mol.atoms }
 

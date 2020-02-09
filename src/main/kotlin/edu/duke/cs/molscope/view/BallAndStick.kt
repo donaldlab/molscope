@@ -16,8 +16,14 @@ import java.nio.ByteBuffer
  */
 class BallAndStick(
 	override val mol: Molecule,
-	val selector: MoleculeSelector = MoleculeSelectors.all
+	initialSelector: MoleculeSelector = MoleculeSelectors.all
 ): MoleculeRenderView {
+
+	override var selector = initialSelector
+		set(value) {
+			field = value
+			moleculeChanged()
+		}
 
 	override var isVisible = true
 
@@ -184,7 +190,6 @@ class BallAndStick(
 
 	override fun getIndexed(index: Int) = sel.getOrNull(index)
 	// TODO: allow indexing other things?
-
 
 	companion object {
 
