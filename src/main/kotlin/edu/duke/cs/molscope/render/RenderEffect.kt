@@ -16,14 +16,23 @@ data class RenderEffect(val flags: ByteFlags<Flags>, val r: UByte, val g: UByte,
 
 		// these must match the render effects in post.frag
 
-		/** shows the selected items in brighter colors */
+		/**
+		 * Shows the selected items in brighter colors:
+		 * color.rgb *= (1 + rgb)
+		 */
 		Highlight(1 shl 0),
 
-		/** draws an inset border around the selected items */
+		/**
+		 * Draws an inset border around the selected items:
+		 * color.rgb = rgb
+		 */
 		Inset(1 shl 1),
 
-		/** draws an outset border around the selected items */
-		Outset(1 shl 2)
+		/**
+		 * Draws an outset border around the selected items:
+		 * color.rgb = rgb
+		 */
+		Outset(1 shl 2),
 	}
 
 	companion object {
