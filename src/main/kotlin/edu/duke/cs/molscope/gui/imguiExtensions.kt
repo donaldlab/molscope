@@ -5,33 +5,37 @@ import edu.duke.cs.molscope.render.LoadedImage
 
 
 /**
- * Calls `pushStyleVar` to temporarily modify the ImGUI style.
- * Make sure to nest other calls to push/pop StyleVar correctly.
+ * Calls `pushStyleVar` to temporarily modify the ImGUI style,
+ * and `pushItemFlag` to disable interactions with controls.
+ * Make sure to nest other calls to push/pop StyleVar  and push/pop ItemFlag correctly.
  *
- * ImGUI doesn't have an enabled/disabled system for most controls, so this is a workaround.
+ * ImGUI doesn't have an (official) enabled/disabled system for most controls (yet),
+ * so this uses internal/BETA functionality for now.
  * See: https://github.com/ocornut/imgui/issues/211
  */
-fun Commands.pushStyleDisabled() {
+fun Commands.pushDisabled() {
 	pushStyleVar(Commands.StyleVar.Alpha, 0.4f)
+	pushItemFlag(Commands.ItemFlags.Disabled, true)
 }
 
-fun Commands.popStyleDisabled(num: Int = 1) {
+fun Commands.popDisabled(num: Int = 1) {
+	popItemFlag()
 	popStyleVar(num)
 }
 
-inline fun <R> Commands.styleDisabledIf(isDisabled: Boolean, block: () -> R): R {
+inline fun <R> Commands.disabledIf(isDisabled: Boolean, block: () -> R): R {
 	if (isDisabled) {
-		pushStyleDisabled()
+		pushDisabled()
 	}
 	val ret = block()
 	if (isDisabled) {
-		popStyleDisabled()
+		popDisabled()
 	}
 	return ret
 }
 
-inline fun <R> Commands.styleEnabledIf(isEnabled: Boolean, block: () -> R) =
-	styleDisabledIf(!isEnabled, block)
+inline fun <R> Commands.enabledIf(isEnabled: Boolean, block: () -> R) =
+	disabledIf(!isEnabled, block)
 
 
 interface WithColumns {

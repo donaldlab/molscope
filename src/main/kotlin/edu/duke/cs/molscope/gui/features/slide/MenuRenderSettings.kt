@@ -6,6 +6,7 @@ import cuchaz.kludge.tools.Ref
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.gui.SlideFeature
 import edu.duke.cs.molscope.gui.SlideCommands
+import edu.duke.cs.molscope.gui.disabledIf
 import edu.duke.cs.molscope.gui.features.FeatureId
 import edu.duke.cs.molscope.render.RenderSettings
 
@@ -42,6 +43,15 @@ class MenuRenderSettings(private val initialSettings: RenderSettings) : SlideFea
 				sliderFloat("Shading", Ref.of(slidewin.renderSettings::shadingWeight), 0f, 2f, "%.2f")
 				sliderFloat("Light Intensity", Ref.of(slidewin.renderSettings::lightWeight), 0f, 4f, "%.2f")
 				sliderFloat("Depth Fade", Ref.of(slidewin.renderSettings::depthWeight), 0f, 1f, "%.2f")
+				indent(20f) {
+					checkbox("Auto", Ref.of(slidewin.renderSettings::autoDepth))
+					disabledIf(slidewin.renderSettings.autoDepth) {
+						itemWidth(140f) {
+							sliderFloat("Min Depth", Ref.of(slidewin.renderSettings::depthZMin), 0f, 1f, "%0.2f")
+							sliderFloat("Max Depth", Ref.of(slidewin.renderSettings::depthZMax), 0f, 1f, "%0.2f")
+						}
+					}
+				}
 				sliderFloat("Ambient Occlusion", Ref.of(slidewin.renderSettings::ambientOcclusionWeight), 0f, 4f, "%.2f")
 			}
 		}

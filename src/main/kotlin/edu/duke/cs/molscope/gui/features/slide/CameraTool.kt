@@ -14,22 +14,19 @@ import edu.duke.cs.molscope.render.HoverEffects
 import edu.duke.cs.molscope.render.RenderEffect
 import edu.duke.cs.molscope.view.MoleculeRenderView
 import org.joml.Vector2fc
-import org.joml.Vector3fc
 import kotlin.math.abs
 import kotlin.math.atan2
 
 
-class NavigationTool : SlideFeature {
+class CameraTool : SlideFeature {
 
-	override val id = FeatureId("navigation")
+	override val id = FeatureId("camera")
 
 	private val winState = WindowState()
 	private var hoverEffects = null as HoverEffects.Writer?
 
-	private fun Slide.Locked.molViews() = views.mapNotNull { it as? MoleculeRenderView }
-
 	override fun menu(imgui: Commands, slide: Slide.Locked, slidewin: SlideCommands) = imgui.run {
-		if (menuItem("Navigate")) {
+		if (menuItem("Camera")) {
 			winState.isOpen = true
 		}
 	}
@@ -41,7 +38,7 @@ class NavigationTool : SlideFeature {
 			click(slidewin)
 		}
 		if (slidewin.mouseLeftDrag) {
-			drag(slidewin)
+			drag(slide, slidewin)
 		}
 		if (slidewin.mouseWheelDelta != 0f) {
 			wheel(slidewin)
@@ -57,11 +54,16 @@ class NavigationTool : SlideFeature {
 			whenOpen = {
 
 				// draw the window
-				window("Navigator##${slide.name}", winState.pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize)) {
+				window("Camera##${slide.name}", winState.pOpen, IntFlags.of(Commands.BeginFlags.AlwaysAutoResize)) {
 
 					// show camera properties
-					sliderFloat("Magnification", Ref.of(slidewin.camera::magnification), 1f, 200f, "%.1fx", power=4f)
-					sliderFloat("View Distance", Ref.of(slidewin.camera::viewDistance), 1f, 400f, "%.1f", power=4f)
+					var changed = false
+					changed = sliderFloat("Magnification", Ref.of(slidewin.camera::magnification), 1f, 200f, "%.1fx", power=4f) || changed
+					changed = sliderFloat("Closeness", Ref.of(slidewin.camera::closeness), 0.001f, 1f, "%.3f") || changed
+					changed = sliderFloat("View Distance", Ref.of(slidewin.camera::viewDistance), 1f, 400f, "%.1f", power=4f) || changed
+					if (changed) {
+						slidewin.camera.changed()
+					}
 				}
 			},
 			onClose = {
@@ -116,7 +118,10 @@ class NavigationTool : SlideFeature {
 			// show a button to center the camera on the atom
 			if (button("Center")) {
 				closeCurrentPopup()
-				centerOn(slidewin, atom.pos.toFloat())
+				slidewin.camera.apply {
+					lookAt(atom.pos.toFloat(), slide.views)
+					changed()
+				}
 			}
 		}
 	}
@@ -163,7 +168,7 @@ class NavigationTool : SlideFeature {
 		}
 	}
 
-	private fun drag(slidewin: SlideCommands) {
+	private fun drag(slide: Slide.Locked, slidewin: SlideCommands) {
 
 		// apply the drag rotations
 		cameraRotator?.apply {
@@ -178,6 +183,8 @@ class NavigationTool : SlideFeature {
 				}
 			}
 			update()
+
+			slidewin.camera.changed()
 		}
 	}
 
@@ -185,12 +192,8 @@ class NavigationTool : SlideFeature {
 
 		// adjust the magnification
 		slidewin.camera.magnification *= 1f + slidewin.mouseWheelDelta/10f
-	}
 
-	private fun centerOn(slidewin: SlideCommands, pos: Vector3fc) {
-
-		// move the camera to the target position
-		slidewin.camera.lookAt(pos)
+		slidewin.camera.changed()
 	}
 }
 

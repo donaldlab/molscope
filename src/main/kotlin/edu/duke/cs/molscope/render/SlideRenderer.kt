@@ -6,6 +6,8 @@ import cuchaz.kludge.vulkan.Queue
 import edu.duke.cs.molscope.CameraCommand
 import edu.duke.cs.molscope.Slide
 import edu.duke.cs.molscope.shaders.Shaders
+import edu.duke.cs.molscope.view.MoleculeRenderView
+import edu.duke.cs.molscope.view.RenderView
 import org.joml.Vector3f
 import java.nio.ByteBuffer
 import kotlin.reflect.KProperty
@@ -223,6 +225,7 @@ internal class SlideRenderer(
 				resize(width, height)
 			}
 		}
+	var cameraSequence = -1
 
 	// make the descriptor pool
 	val descriptorPool = device.descriptorPool(
@@ -504,16 +507,31 @@ internal class SlideRenderer(
 		while (slide.camera.queue.isNotEmpty()) {
 			val cmd = slide.camera.queue.pollFirst() ?: break
 			when (cmd) {
-				is CameraCommand.LookAtBox -> camera.lookAtBox(
+				is CameraCommand.LookAtBox -> {
+					camera.lookAtBox(
 						width, height,
 						focalLength = 200f,
 						look = Vector3f(0f, 0f, 1f),
 						up = Vector3f(0f, 1f, 0f),
 						box = cmd.aabb
 					)
+					camera.changed()
+				}
 			}
 		}
-		camera.upload()
+
+		// did the camera change?
+		if (camera.sequence > cameraSequence) {
+
+			// yup, upload the new camera to the GPU
+			cameraSequence = camera.sequence
+			camera.upload()
+
+			// update the depth settings, if needed
+			if (settings.autoDepth) {
+				settings.updateDepth(camera, slide.views)
+			}
+		}
 
 		// update the hover buffer
 		cursorBufHost.memory.map { buf ->
@@ -548,8 +566,10 @@ internal class SlideRenderer(
 			buf.flip()
 		}
 
-		// update the settings buffer if needed
+		// did the render settings change?
 		if (settings.dirty) {
+
+			// yup, upload them to the GPU
 			settingsBuf.transferHtoD { buf ->
 				buf.putSettings(settings)
 				buf.flip()
@@ -711,7 +731,7 @@ class RenderSettings {
 	}
 
 	companion object {
-		val bufferSize: Long = Float.SIZE_BYTES*8L
+		val bufferSize: Long = Float.SIZE_BYTES*10L
 	}
 
 	var backgroundColor: Vector3f by Dirtyable(Vector3f(0f, 0f, 0f))
@@ -719,9 +739,12 @@ class RenderSettings {
 	var lightWeight: Float by Dirtyable(1f)
 	var shadingWeight: Float by Dirtyable(1f)
 	var depthWeight: Float by Dirtyable(0.2f)
+	var depthZMin: Float by Dirtyable(0f)
+	var depthZMax: Float by Dirtyable(1f)
 	var ambientOcclusionWeight: Float by Dirtyable(0f) // default to 0, so occlusion is off
 
 	var showOcclusionField: Boolean = false
+	var autoDepth: Boolean = true
 
 	fun set(other: RenderSettings) {
 
@@ -730,9 +753,39 @@ class RenderSettings {
 		this.lightWeight = other.lightWeight
 		this.shadingWeight = other.shadingWeight
 		this.depthWeight = other.depthWeight
+		this.depthZMin = other.depthZMin
+		this.depthZMax = other.depthZMax
 		this.ambientOcclusionWeight = other.ambientOcclusionWeight
 
 		this.showOcclusionField = other.showOcclusionField
+		this.autoDepth = other.autoDepth
+	}
+
+	fun updateDepth(camera: Camera, views: List<RenderView>, margin: Float = 0.05f) {
+
+		// get atom distances to the camera
+		val distances = views
+			.filterIsInstance<MoleculeRenderView>()
+			.flatMap { it.mol.atoms }
+			.map { it.pos.toFloat().sub(camera.pos).parallelTo(camera.look).lengthSquared() }
+
+		if (distances.isEmpty()) {
+			return
+		}
+
+		// get the min,max distances
+		var minDist = distances.min()!!.sqrt()
+		var maxDist = distances.max()!!.sqrt()
+
+		// add the margin
+		val pad = (maxDist - minDist)*margin/2
+		minDist -= pad
+		maxDist += pad
+
+		// normalize the distances into the [zNear,zFar] range
+		val zLen = camera.zFar - camera.zNear
+		depthZMin = ((minDist - camera.zNear)/zLen).atLeast(0f)
+		depthZMax = ((maxDist - camera.zNear)/zLen).atMost(1f)
 	}
 }
 
@@ -742,5 +795,7 @@ private fun ByteBuffer.putSettings(settings: RenderSettings) {
 	putFloat(settings.shadingWeight)
 	putFloat(settings.lightWeight)
 	putFloat(settings.depthWeight)
+	putFloat(settings.depthZMin)
+	putFloat(settings.depthZMax)
 	putFloat(settings.ambientOcclusionWeight)
 }

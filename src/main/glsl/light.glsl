@@ -24,6 +24,8 @@ layout(binding = 3, std140) uniform readonly restrict Settings {
 	float shadingWeight;
 	float lightWeight;
 	float depthWeight;
+	float depthZMin;
+	float depthZMax;
 	float ambientOcclusionWeight;
 } inSettings;
 
@@ -79,6 +81,12 @@ vec4 light(vec4 color, vec3 posCamera, vec3 normalCamera) {
 	// apply depth fading (ie far away things are more like the background)
 	if (inSettings.depthWeight > 0) {
 		float depth = cameraToNDC(posCamera).z;
+		float width = inSettings.depthZMax - inSettings.depthZMin;
+		if (width < 0) {
+			width = 0;
+		}
+		depth = (depth - inSettings.depthZMin)/width;
+		depth = clamp(depth, 0, 1);
 		rgb = mix(rgb, inSettings.backgroundColor, inSettings.depthWeight*depth);
 	}
 

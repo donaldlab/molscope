@@ -2,9 +2,12 @@ package edu.duke.cs.molscope.render
 
 import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
+import edu.duke.cs.molscope.view.MoleculeRenderView
+import edu.duke.cs.molscope.view.RenderView
 import org.joml.*
 import java.lang.Float.min
 import java.nio.ByteBuffer
+import kotlin.math.sign
 
 
 class Camera internal constructor(
@@ -26,10 +29,35 @@ class Camera internal constructor(
 	val side: Vector3f = Vector3f()
 	val look: Vector3f = Vector3f()
 
+	var sequence = 0
+		private set
+
+	/** Signals to the renderer that the camera has changed. */
+	fun changed() {
+		sequence++
+	}
+
+	private val lookDist get() = lookAt.distance(pos)
+
+	// TODO: add variable for focal length?
+
+	var closeness: Float
+		get() = zNear/lookDist
+		set(value) {
+
+			val oldZNear = zNear
+
+			zNear = value*lookDist
+
+			// adjust the magnification to keep the same target in-frame
+			magnification *= oldZNear/zNear
+		}
+
 	var viewDistance: Float
 		get() = zFar - zNear
 		set(value) {
 			zFar = zNear + value
+			sequence++
 		}
 
 	/** side = up x look */
@@ -110,11 +138,18 @@ class Camera internal constructor(
 		lookAt.boxCenter(box)
 
 		// get the nearest and farthest corners of the box
-		val cornersDist = (0 until box.numCorners)
-			.map { i -> Vector3f().boxCorner(box, i) }
-			.map { p -> p to Vector3f(p).sub(lookAt).parallelTo(this.look).dot(this.look) }
-		val (nearCorner, near) = cornersDist.minBy { (_, dot) -> dot }!!
-		val (farCorner, far) = cornersDist.maxBy { (_, dot) -> dot }!!
+		val cornerDistances = (0 until box.numCorners)
+			.map { i ->
+				Vector3f().boxCorner(box, i)
+					.sub(lookAt)
+					.parallelTo(this.look)
+					.let { parallel ->
+						parallel.dot(look).sign*parallel.length()
+					}
+
+			}
+		val near = cornerDistances.min()!!
+		val far = cornerDistances.max()!!
 
 		pos.set(this.look)
 			.mul(near - focalLength)
@@ -148,12 +183,36 @@ class Camera internal constructor(
 		side.rotate(q)
 		up.rotate(q)
 		look.rotate(q)
+
+		// TODO: update depth
 	}
 
-	fun lookAt(target: Vector3fc) {
+	/**
+	 * Update the camera to point at the target position.
+	 *
+	 * If views are given, the views are analyzed to automatically update the near/far planes.
+	 */
+	fun lookAt(target: Vector3fc, views: Iterable<RenderView>? = null) {
 
 		pos.add(target).sub(lookAt)
 		lookAt.set(target)
+
+		if (views != null) {
+
+			// get the max radius from the views
+			views
+				.filterIsInstance<MoleculeRenderView>()
+				.flatMap { it.mol.atoms }
+				.map { it.pos.toFloat().distanceSquared(target) }
+				.max()
+				?.sqrt()
+				?.let { r ->
+
+					// update the near,far planes based on the max radius
+					zNear = (lookDist - r).atLeast(0.001f)
+					zFar = lookDist + r
+				}
+		}
 	}
 
 	inner class Rotator {
