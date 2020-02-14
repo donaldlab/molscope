@@ -15,15 +15,17 @@ class VulkanDevice(
 	private fun <R:AutoCloseable> R.autoClose() = also { autoCloser.add(this@autoClose) }
 	override fun close() = autoCloser.close()
 
+	private val canDebug = Molscope.dev && Vulkan.DebugExtension in Vulkan.supportedExtensions
+
 	// make the main vulkan instance with the extensions we need
 	val vulkan =
 		Vulkan(
 			extensionNames = vulkanExtensions.toMutableSet().apply {
-				if (Molscope.dev) {
+				if (canDebug) {
 					add(Vulkan.DebugExtension)
 				}
 			},
-			layerNames = if (Molscope.dev) {
+			layerNames = if (Molscope.dev && Vulkan.StandardValidationLayer in Vulkan.supportedLayers) {
 				setOf(Vulkan.StandardValidationLayer)
 			} else {
 				emptySet()
@@ -31,7 +33,7 @@ class VulkanDevice(
 		)
 		.autoClose()
 		.apply {
-			if (Molscope.dev) {
+			if (canDebug) {
 				// listen to problems from vulkan
 				debugMessenger(
 					severities = IntFlags.of(DebugMessenger.Severity.Error, DebugMessenger.Severity.Warning)
