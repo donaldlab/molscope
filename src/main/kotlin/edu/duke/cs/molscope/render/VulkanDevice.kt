@@ -16,6 +16,7 @@ class VulkanDevice(
 	override fun close() = autoCloser.close()
 
 	private val canDebug = Molscope.dev && Vulkan.DebugExtension in Vulkan.supportedExtensions
+	private val canReport = Molscope.dev && Vulkan.ReportExtension in Vulkan.supportedExtensions
 
 	// make the main vulkan instance with the extensions we need
 	val vulkan =
@@ -24,23 +25,42 @@ class VulkanDevice(
 				if (canDebug) {
 					add(Vulkan.DebugExtension)
 				}
+				if (canReport) {
+					add(Vulkan.ReportExtension)
+				}
 			},
-			layerNames = if (Molscope.dev && Vulkan.StandardValidationLayer in Vulkan.supportedLayers) {
-				setOf(Vulkan.StandardValidationLayer)
+			layerNames = if (Molscope.dev) {
+				mutableSetOf<String>().apply {
+					if (Vulkan.StandardValidationLayer in Vulkan.supportedLayers) {
+						add(Vulkan.StandardValidationLayer)
+					}
+					if (Vulkan.ValidationLayer in Vulkan.supportedLayers) {
+						add(Vulkan.ValidationLayer)
+					}
+				}
 			} else {
 				emptySet()
 			}
 		)
 		.autoClose()
 		.apply {
+			// listen to problems from vulkan
 			if (canDebug) {
-				// listen to problems from vulkan
 				debugMessenger(
 					severities = IntFlags.of(DebugMessenger.Severity.Error, DebugMessenger.Severity.Warning)
 				) { severity, type, msg ->
 					println("VULKAN: ${severity.toFlagsString()} ${type.toFlagsString()} $msg")
 					Exception("Stack Trace").printStackTrace(System.out)
 				}.autoClose()
+			}
+			if (canReport) {
+				reportMessenger(
+					flags = IntFlags.of(ReportMessenger.Flags.Error, ReportMessenger.Flags.Warning)
+				) { flags, msg ->
+					println("VULKAN: ${flags.toFlagsString()} $msg")
+					Exception("Stack Trace").printStackTrace(System.out)
+				}
+				.autoClose()
 			}
 		}
 
