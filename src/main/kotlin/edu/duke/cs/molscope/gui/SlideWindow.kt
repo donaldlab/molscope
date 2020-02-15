@@ -217,14 +217,14 @@ internal class SlideWindow(
 			}
 		}
 
+		// track the window content area
+		getWindowContentRegionMin(contentMin)
+		getWindowContentRegionMax(contentMax)
+
 		val rendererInfo = rendererInfo ?: run {
 			end()
 			return
 		}
-
-		// track the window content area
-		getWindowContentRegionMin(contentMin)
-		getWindowContentRegionMax(contentMax)
 
 		// draw the slide image
 		setCursorPos(contentMin)
