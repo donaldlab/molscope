@@ -12,9 +12,9 @@ layout(binding = 0, std140) buffer restrict readonly Cursor {
 	uvec4 effects; // offset = 32
 } inCursor;
 
-layout(binding = 1, rgba8) uniform restrict readonly image2D inColor;
-layout(binding = 2, rg32i) uniform restrict readonly iimage2D inIndices;
-layout(binding = 3, rgba8ui) uniform restrict readonly uimage2D inEffects;
+layout(binding = 1) uniform sampler2D inColor;
+layout(binding = 2) uniform isampler2D inIndices;
+layout(binding = 3) uniform usampler2D inEffects;
 
 layout(location = 0) out vec4 outColor;
 
@@ -71,7 +71,7 @@ vec4 applyEffects(vec4 color, Effects effects, Effects neighborEffects[NUM_DIRS]
 }
 
 bool inRange(ivec2 p) {
-	ivec2 size = imageSize(inIndices);
+	ivec2 size = textureSize(inIndices, 0);
 	return p.x >= 0 && p.x < size.x && p.y >= 0 && p.y < size.y;
 }
 
@@ -79,7 +79,7 @@ const ivec2 NULL_INDICES = ivec2(-1, -1);
 
 ivec2 loadIndices(ivec2 p) {
 	if (inRange(p)) {
-		return imageLoad(inIndices, p).rg;
+		return texelFetch(inIndices, p, 0).rg;
 	} else {
 		return NULL_INDICES;
 	}
@@ -94,7 +94,7 @@ Effects unpackEffects(uvec4 effects) {
 
 Effects loadEffects(ivec2 p) {
 	if (inRange(p)) {
-		return unpackEffects(imageLoad(inEffects, p));
+		return unpackEffects(texelFetch(inEffects, p, 0));
 	} else {
 		return Effects(
 			0,
@@ -109,7 +109,7 @@ void main() {
 	ivec2 p = ivec2(gl_FragCoord.xy);
 
 	// get info for this pixel
-	vec4 color = imageLoad(inColor, p);
+	vec4 color = texelFetch(inColor, p, 0);
 	ivec2 indices = loadIndices(p);
 
 	// get the neighborhood around the pixel too, since some effects use that

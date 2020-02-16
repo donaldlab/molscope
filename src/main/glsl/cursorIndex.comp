@@ -12,17 +12,16 @@ layout(binding = 0, std140) buffer restrict Cursor {
 	uvec4 effects; // offset = 32
 } inCursor;
 
-layout(binding = 2, rg32i) uniform restrict readonly iimage2D inIndices;
-
+layout(binding = 2) uniform isampler2D inIndices;
 
 bool inRange(ivec2 p) {
-	ivec2 size = imageSize(inIndices);
+	ivec2 size = textureSize(inIndices, 0);
 	return p.x >= 0 && p.x < size.x && p.y >= 0 && p.y < size.y;
 }
 
 ivec2 loadIndices(ivec2 p) {
 	if (inRange(p)) {
-		return imageLoad(inIndices, p).rg;
+		return texelFetch(inIndices, p, 0).rg;
 	} else {
 		return ivec2(-1, -1);
 	}

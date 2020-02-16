@@ -52,7 +52,6 @@ internal class SlideRenderer(
 			format = Image.Format.R8G8B8A8_UNORM,
 			loadOp = LoadOp.Clear,
 			storeOp = StoreOp.Store,
-			// finish this on ShaderReadOnlyOptimal, so WindowRenderer can sample it
 			finalLayout = Image.Layout.ShaderReadOnlyOptimal
 		)
 	val indexAttachment =
@@ -60,14 +59,14 @@ internal class SlideRenderer(
 			format = Image.Format.R32G32_SINT,
 			loadOp = LoadOp.Clear,
 			storeOp =  StoreOp.Store,
-			finalLayout = Image.Layout.ShaderReadOnlyOptimal
+			finalLayout = Image.Layout.General
 		)
 	val effectsAttachment =
 		Attachment(
 			format = Image.Format.R8G8B8A8_UINT,
 			loadOp = LoadOp.Clear,
 			storeOp = StoreOp.Store,
-			finalLayout = Image.Layout.ShaderReadOnlyOptimal
+			finalLayout = Image.Layout.General
 		)
 	val depthAttachment =
 		Attachment(
@@ -134,7 +133,7 @@ internal class SlideRenderer(
 			Image.Type.TwoD,
 			extent.to3D(1),
 			colorAttachment.format,
-			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Storage, Image.Usage.InputAttachment)
+			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Sampled)
 		)
 		.autoClose()
 		.allocateDevice()
@@ -146,7 +145,7 @@ internal class SlideRenderer(
 			Image.Type.TwoD,
 			extent.to3D(1),
 			indexAttachment.format,
-			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Storage, Image.Usage.InputAttachment)
+			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Sampled)
 		)
 		.autoClose()
 		.allocateDevice()
@@ -158,7 +157,7 @@ internal class SlideRenderer(
 			Image.Type.TwoD,
 			extent.to3D(1),
 			effectsAttachment.format,
-			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Storage, Image.Usage.InputAttachment)
+			IntFlags.of(Image.Usage.ColorAttachment, Image.Usage.Sampled)
 		)
 		.autoClose()
 		.allocateDevice()
@@ -185,8 +184,7 @@ internal class SlideRenderer(
 			Image.Type.TwoD,
 			extent.to3D(1),
 			depthAttachment.format,
-			IntFlags.of(Image.Usage.DepthStencilAttachment),
-			tiling = Image.Tiling.Optimal // need "optimal" tiling for depth buffers
+			IntFlags.of(Image.Usage.DepthStencilAttachment)
 		)
 		.autoClose()
 		.allocateDevice()
@@ -232,8 +230,7 @@ internal class SlideRenderer(
 		sizes = DescriptorType.Counts(
 			DescriptorType.UniformBuffer to 3,
 			DescriptorType.StorageBuffer to 2,
-			DescriptorType.StorageImage to 4,
-			DescriptorType.CombinedImageSampler to 1
+			DescriptorType.CombinedImageSampler to 5
 		)
 	).autoClose()
 
@@ -272,7 +269,7 @@ internal class SlideRenderer(
 	)
 	val indexImageBinding = DescriptorSetLayout.Binding(
 		binding = 2,
-		type = DescriptorType.StorageImage,
+		type = DescriptorType.CombinedImageSampler,
 		stages = IntFlags.of(ShaderStage.Compute, ShaderStage.Fragment)
 	)
 	val cursorDescriptorSetLayout = device.descriptorSetLayout(listOf(
@@ -283,12 +280,12 @@ internal class SlideRenderer(
 	// make the post descriptor set
 	val colorImageBinding = DescriptorSetLayout.Binding(
 		binding = 1,
-		type = DescriptorType.StorageImage,
+		type = DescriptorType.CombinedImageSampler,
 		stages = IntFlags.of(ShaderStage.Fragment)
 	)
 	val effectsImageBinding = DescriptorSetLayout.Binding(
 		binding = 3,
-		type = DescriptorType.StorageImage,
+		type = DescriptorType.CombinedImageSampler,
 		stages = IntFlags.of(ShaderStage.Compute, ShaderStage.Fragment)
 	)
 	val postDescriptorSetLayout = device.descriptorSetLayout(listOf(
@@ -350,19 +347,19 @@ internal class SlideRenderer(
 					DescriptorSet.BufferInfo(cursorBufDevice.buffer)
 				),
 				cursorDescriptorSet.address(indexImageBinding).write(
-					DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
+					DescriptorSet.ImageInfo(sampler, indexView, Image.Layout.General)
 				),
 				postDescriptorSet.address(cursorBufBinding).write(
 					DescriptorSet.BufferInfo(cursorBufDevice.buffer)
 				),
 				postDescriptorSet.address(colorImageBinding).write(
-					DescriptorSet.ImageInfo(null, colorView, Image.Layout.General)
+					DescriptorSet.ImageInfo(sampler, colorView, Image.Layout.ShaderReadOnlyOptimal)
 				),
 				postDescriptorSet.address(indexImageBinding).write(
-					DescriptorSet.ImageInfo(null, indexView, Image.Layout.General)
+					DescriptorSet.ImageInfo(sampler, indexView, Image.Layout.General)
 				),
 				postDescriptorSet.address(effectsImageBinding).write(
-					DescriptorSet.ImageInfo(null, effectsView, Image.Layout.General)
+					DescriptorSet.ImageInfo(sampler, effectsView, Image.Layout.General)
 				)
 			)
 		)
@@ -567,29 +564,6 @@ internal class SlideRenderer(
 			// upload the cursor buffer
 			copyBuffer(cursorBufHost.buffer, cursorBufDevice.buffer)
 
-			// get the framebuffer attachments ready for rendering
-			pipelineBarrier(
-				srcStage = IntFlags.of(PipelineStage.TopOfPipe),
-				dstStage = IntFlags.of(PipelineStage.ColorAttachmentOutput),
-				images = listOf(
-					colorImage.image.barrier(
-						dstAccess = IntFlags.of(Access.ColorAttachmentWrite),
-						newLayout = Image.Layout.ColorAttachmentOptimal
-					)
-				)
-			)
-			pipelineBarrier(
-				srcStage = IntFlags.of(PipelineStage.TopOfPipe),
-				dstStage = IntFlags.of(PipelineStage.EarlyFragmentTests),
-				images = listOf(
-					depth.image.barrier(
-						dstAccess = IntFlags.of(Access.DepthStencilAttachmentRead, Access.DepthStencilAttachmentWrite),
-						newLayout = Image.Layout.DepthStencilAttachmentOptimal,
-						range = Image.SubresourceRange(aspectMask = IntFlags.of(Image.Aspect.Depth))
-					)
-				)
-			)
-
 			occlusionRenderer.barriers(this, occlusionField)
 
 			// draw all the views
@@ -619,36 +593,13 @@ internal class SlideRenderer(
 			}
 			endRenderPass()
 
-			pipelineBarrier(
-				srcStage = IntFlags.of(PipelineStage.TopOfPipe),
-				dstStage = IntFlags.of(PipelineStage.FragmentShader),
-				images = listOf(
-					colorImage.image.barrier(
-						dstAccess = IntFlags.of(Access.ShaderRead),
-						newLayout = Image.Layout.General
-					),
-					indexImage.image.barrier(
-						dstAccess = IntFlags.of(Access.ShaderRead),
-						newLayout = Image.Layout.General
-					),
-					effectsImage.image.barrier(
-						dstAccess = IntFlags.of(Access.ShaderRead),
-						newLayout = Image.Layout.General
-					)
-				)
-			)
-
+			// figure out what was under the cursor, if needed
 			if (cursorPos != null) {
 
-				// figure out what was under the cursor
+				// wait for the render pass to finish
 				pipelineBarrier(
-					srcStage = IntFlags.of(PipelineStage.Transfer),
-					dstStage = IntFlags.of(PipelineStage.ComputeShader),
-					buffers = listOf(
-						cursorBufDevice.buffer.barrier(
-							dstAccess = IntFlags.of(Access.ShaderRead, Access.ShaderWrite)
-						)
-					)
+					srcStage = IntFlags.of(PipelineStage.ColorAttachmentOutput),
+					dstStage = IntFlags.of(PipelineStage.ComputeShader)
 				)
 
 				bindPipeline(cursorPipeline)
@@ -657,17 +608,13 @@ internal class SlideRenderer(
 
 				// download the cursor buffer so we can read the index on the host side
 				copyBuffer(cursorBufDevice.buffer, cursorBufHost.buffer)
-			}
 
-			pipelineBarrier(
-				srcStage = IntFlags.of(PipelineStage.ComputeShader),
-				dstStage = IntFlags.of(PipelineStage.FragmentShader),
-				buffers = listOf(
-					cursorBufDevice.buffer.barrier(
-						dstAccess = IntFlags.of(Access.ShaderRead)
-					)
+				// wait for the compute shader to finish before running the post shader
+				pipelineBarrier(
+					srcStage = IntFlags.of(PipelineStage.ComputeShader),
+					dstStage = IntFlags.of(PipelineStage.FragmentShader)
 				)
-			)
+			}
 
 			// do the post-processing pass
 			beginRenderPass(

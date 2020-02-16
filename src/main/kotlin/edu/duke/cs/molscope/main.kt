@@ -5,6 +5,7 @@ import edu.duke.cs.molscope.gui.Window
 import edu.duke.cs.molscope.gui.features.slide.NavigationTool
 import edu.duke.cs.molscope.molecule.*
 import edu.duke.cs.molscope.view.BallAndStick
+import edu.duke.cs.molscope.view.SpaceFilling
 
 
 fun main() = autoCloser {
@@ -134,15 +135,18 @@ fun main() = autoCloser {
 		title = "MolScope"
 	).autoClose()
 
-	/* TEMP
 	// prepare a slide for the molecule
 	win.slides.add(Slide(mol.name).apply {
 		lock { s ->
+
 			s.views.add(SpaceFilling(mol))
 			s.camera.lookAtEverything()
+
+			s.features.menu("View") {
+				add(NavigationTool())
+			}
 		}
 	})
-	*/
 
 	// prepare a slide for the dipeptide
 	win.slides.add(Slide(dipeptide.name).apply {

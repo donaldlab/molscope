@@ -24,8 +24,7 @@ class VulkanDevice(
 			extensionNames = vulkanExtensions.toMutableSet().apply {
 				if (canDebug) {
 					add(Vulkan.DebugExtension)
-				}
-				if (canReport) {
+				} else if (canReport) {
 					add(Vulkan.ReportExtension)
 				}
 			},
@@ -44,7 +43,7 @@ class VulkanDevice(
 		)
 		.autoClose()
 		.apply {
-			// listen to problems from vulkan
+			// listen to problems from vulkan, prefer the debug extension over the report extension
 			if (canDebug) {
 				debugMessenger(
 					severities = IntFlags.of(DebugMessenger.Severity.Error, DebugMessenger.Severity.Warning)
@@ -52,8 +51,7 @@ class VulkanDevice(
 					println("VULKAN: ${severity.toFlagsString()} ${type.toFlagsString()} $msg")
 					Exception("Stack Trace").printStackTrace(System.out)
 				}.autoClose()
-			}
-			if (canReport) {
+			} else if (canReport) {
 				reportMessenger(
 					flags = IntFlags.of(ReportMessenger.Flags.Error, ReportMessenger.Flags.Warning)
 				) { flags, msg ->

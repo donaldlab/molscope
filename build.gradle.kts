@@ -68,6 +68,10 @@ tasks {
 						this.workingDir = outDir
 						commandLine(
 							"glslc",
+							"--target-env=vulkan1.0",
+							"--target-spv=spv1.0",
+							"-Werror",
+							"-x", "glsl",
 							"-o", outFile.path,
 							inFile.absolutePath
 						)
