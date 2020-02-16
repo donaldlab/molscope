@@ -143,7 +143,7 @@ fun main() = autoCloser {
 			s.camera.lookAtEverything()
 
 			s.features.menu("View") {
-				add(NavigationTool())
+				add(CameraTool())
 			}
 		}
 	})
