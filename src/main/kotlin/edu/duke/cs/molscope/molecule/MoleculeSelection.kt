@@ -30,3 +30,40 @@ object MoleculeSelectors {
 		mol.atoms.filter { it.name.normalize() == name.normalize() }
 	}
 }
+
+
+/**
+ * Applies the selector and returns a new molecule containing only the selected atoms.
+ * Polymer structure is preserved where possible
+ */
+fun MoleculeSelector.filter(mol: Molecule): Molecule {
+
+	if (mol is Polymer) {
+
+		val atomsLookup = this(mol).toIdentitySet()
+
+		val filteredMol = Polymer(mol.name)
+		for (chain in mol.chains) {
+
+			val filteredChain = Polymer.Chain(chain.id)
+			filteredMol.chains.add(filteredChain)
+
+			for (res in chain.residues) {
+
+				val filteredRes = Polymer.Residue(res.id, res.type)
+				filteredChain.residues.add(filteredRes)
+
+				val filteredAtoms = res.atoms.filter { it in atomsLookup }
+				filteredRes.atoms.addAll(filteredAtoms)
+				filteredMol.atoms.addAll(filteredAtoms)
+			}
+		}
+		return filteredMol
+
+	} else {
+
+		val filteredMol = Molecule(mol.name, mol.type)
+		filteredMol.atoms.addAll(this(mol))
+		return filteredMol
+	}
+}
