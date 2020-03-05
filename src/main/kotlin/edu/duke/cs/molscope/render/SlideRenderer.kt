@@ -414,31 +414,9 @@ internal class SlideRenderer(
 				)
 			),
 
-			// always overwrite the dest (framebuf) values
-			indexAttachment to ColorBlendState.Attachment(
-				color = ColorBlendState.Attachment.Part(
-					src = BlendFactor.One,
-					dst = BlendFactor.Zero,
-					op = BlendOp.Add
-				),
-				alpha = ColorBlendState.Attachment.Part(
-					src = BlendFactor.One,
-					dst = BlendFactor.Zero,
-					op = BlendOp.Add
-				)
-			),
-			effectsAttachment to ColorBlendState.Attachment(
-				color = ColorBlendState.Attachment.Part(
-					src = BlendFactor.One,
-					dst = BlendFactor.Zero,
-					op = BlendOp.Add
-				),
-				alpha = ColorBlendState.Attachment.Part(
-					src = BlendFactor.One,
-					dst = BlendFactor.Zero,
-					op = BlendOp.Add
-				)
-			)
+			// always overwrite the dest (framebuf) values, so turn off blending
+			indexAttachment to null,
+			indexAttachment to null
 		),
 		depthStencilState = DepthStencilState()
 	)
