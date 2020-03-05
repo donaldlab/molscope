@@ -9,6 +9,7 @@ import edu.duke.cs.molscope.render.*
 import edu.duke.cs.molscope.tools.IdentityChangeTracker
 import edu.duke.cs.molscope.view.*
 import org.joml.Vector2f
+import org.lwjgl.system.Platform
 import kotlin.NoSuchElementException
 
 
@@ -80,7 +81,13 @@ internal class SlideWindow(
 	}
 
 	private val renderablesTracker = RenderablesTracker()
-	private val occlusionCalculator = OcclusionCalculator(queue).autoClose()
+
+	// OSX doesn't support some functions in the compute shader, so we can't do ambient occlusion on that platform
+	private val occlusionCalculator: OcclusionCalculator? = when(Platform.get()) {
+		Platform.MACOSX -> null
+		else -> OcclusionCalculator(queue).autoClose()
+	}
+
 	private var occlusionField: OcclusionCalculator.Field? = null
 
 	fun render(slide: Slide.Locked, renderFinished: Semaphore): Boolean {
@@ -104,14 +111,14 @@ internal class SlideWindow(
 
 				// update the occlusion field
 				occlusionField = occlusionCalculator
-					.Field(
+					?.Field(
 						// TODO: make configurable?
 						extent = Extent3D(16, 16, 16),
 						gridSubdivisions = 2,
 						renderables = renderables
 					)
-					.autoClose(replace = occlusionField)
-					.apply {
+					?.autoClose(replace = occlusionField)
+					?.apply {
 						updateDescriptorSet(renderer)
 					}
 			}

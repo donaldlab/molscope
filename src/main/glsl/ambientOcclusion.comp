@@ -248,5 +248,7 @@ void main() {
 		}
 	}
 
+	// NOTE: imageAtomicAdd is apparently not supported on OSX (via MoltenVK, via Metal)
+	// like ... at all. Just give up now. Don't run this code on OSX
 	imageAtomicAdd(outOcclusion, ivec3(iSample), occlusions);
 }
