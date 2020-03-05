@@ -161,6 +161,7 @@ fun main() = autoCloser {
 		}
 	})
 
-	win.waitForClose()
-
+	while (win.isOpen) {
+		win.render()
+	}
 } // end of scope here cleans up all autoClose() resources

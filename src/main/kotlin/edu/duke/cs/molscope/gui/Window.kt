@@ -20,12 +20,12 @@ import edu.duke.cs.molscope.render.LoadedImage
 import edu.duke.cs.molscope.render.VulkanDevice
 import edu.duke.cs.molscope.render.WindowRenderer
 import edu.duke.cs.molscope.render.toBuffer
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
 
 /**
- * Thread-safe API for the windowing system
+ * Thread-safe API for the windowing system.
+ * On OSX, this must be called on the main thread.
  */
 class Window(
 	title: String = "MolScope",
@@ -33,47 +33,38 @@ class Window(
 	height: Int = 600
 ) : AutoCloseable {
 
-	// start the window and renderer on a dedicated thread
-	private lateinit var windowThread: WindowThread
-	private val latch = CountDownLatch(1)
-	private val thread =
-		Thread {
-			WindowThread(title, Size(width, height)).use {
-				windowThread = it
-				latch.countDown()
-				windowThread.renderLoop()
-			}
-		}
-		.apply {
-			name = "Window"
-			isDaemon = false
-			start()
-		}
-
-	init {
-		// wait for the thread to start
-		latch.await()
-	}
+	// handle all the native window communication in a protected "core",
+	// so we can synchronize access from multiple threads
+	private val core = WindowCore(title, Size(width, height))
 
 	override fun close() {
-		if (thread.isAlive) {
-			sync {
-				// ask the thread to stop by asking the window to close
-				win.shouldClose = true
-			}
-			thread.join(1000)
-		}
+		core.close()
 	}
 
-	fun waitForClose() {
-		thread.join()
+	/**
+	 * Changes to false after the window has closed.
+	 * After the window has closed, it's no longer necessary to render the window.
+	 */
+	var isOpen = true
+		private set
+
+	/**
+	 * Handle input events and render the window.
+	 * Call this in a loop as long as `isOpen` is true.
+	 * On OSX, this must be called on the main thread.
+	 */
+	fun render() {
+		sync {
+			render()
+			this@Window.isOpen = isOpen
+		}
 	}
 
 	/**
 	 * when on the caller thread, never access windowThread directly
 	 * always call sync() to access the windowThread at the right time
 	 */
-	private inline fun <R> sync(block: WindowThread.() -> R): R = synchronized(windowThread) { windowThread.block() }
+	private inline fun <R> sync(block: WindowCore.() -> R): R = synchronized(core) { core.block() }
 
 	var backgroundColor: ColorRGBA
 		get() = sync { renderer.backgroundColor }
@@ -131,7 +122,7 @@ private class WindowSeparator(id: Int) : WindowFeature {
 /**
  * Thread to manage window, rendering, etc
  */
-internal class WindowThread(
+internal class WindowCore(
 	title: String,
 	size: Size
 ) : AutoCloseable {
@@ -139,7 +130,13 @@ internal class WindowThread(
 	private val closer = AutoCloser()
 	private fun <R:AutoCloseable> R.autoClose(replace: R? = null) = apply { closer.add(this, replace) }
 	private fun <R> R.autoClose(block: R.() -> Unit) = apply { closer.add { block() } }
-	override fun close() = closer.close()
+	override fun close() {
+
+		// wait for the device to finish before starting cleanup
+		device.waitForIdle()
+
+		closer.close()
+	}
 
 	init {
 
@@ -267,99 +264,92 @@ internal class WindowThread(
 			get() = win.shouldClose
 			set(value) { win.shouldClose = value }
 
-		override fun addSlide(slide: Slide) = this@WindowThread.addSlide(slide)
-		override fun removeSlide(slide: Slide): Boolean = this@WindowThread.removeSlide(slide)
+		override fun addSlide(slide: Slide) = this@WindowCore.addSlide(slide)
+		override fun removeSlide(slide: Slide): Boolean = this@WindowCore.removeSlide(slide)
 
 		override fun loadImage(bytes: ByteArray) =
 			LoadedImage(graphicsQueue, bytes.toBuffer())
 				.autoClose()
 	}
 
+	val isOpen get() = !win.shouldClose
 
-	fun renderLoop() {
+	internal fun render() {
 
-		while (!win.shouldClose) {
-			synchronized(this) {
+		Windows.pollEvents()
 
-				Windows.pollEvents()
-
-				// render the slides (if possible), and collect the semaphores of the ones we rendered
-				val slideSemaphores = slideWindows.values.mapNotNull { slidewin ->
-					slidewin.resizeIfNeeded()
-					slidewin.slide.lock { slide ->
-						if (slidewin.render(slide, slidewin.renderFinished)) {
-							return@mapNotNull slidewin.renderFinished
-						} else {
-							// slide doesn't have size info from the GUI yet
-							return@mapNotNull null
-						}
-					}
-				}
-
-				// render the window
-				try {
-					renderer.render(slideSemaphores) {
-
-						if (beginMainMenuBar()) {
-
-							// render window feature menus
-							for (menu in features.menus) {
-								if (beginMenu(menu.name)) {
-									for (feature in menu.features) {
-										feature.menu(this, winCommands)
-									}
-									endMenu()
-								}
-							}
-
-							endMainMenuBar()
-						}
-
-						// render window feature guis
-						for (menu in features.menus) {
-							for (feature in menu.features) {
-								feature.gui(this, winCommands)
-							}
-						}
-
-						// draw the slide sub-windows
-						for (slidewin in slideWindows.values) {
-							slidewin.gui(this)
-						}
-
-						// render exceptions
-						exceptionViewer.gui(this)
-					}
-
-					// cleanup any deferred slide windows
-					if (slideWindowsToClose.isNotEmpty()) {
-
-						// wait for the frame to finish first though
-						device.waitForIdle()
-
-						closeDeferredSlideWindows()
-					}
-
-				} catch (ex: SwapchainOutOfDateException) {
-
-					device.waitForIdle()
-
-					// cleanup any deferred slide windows
-					closeDeferredSlideWindows()
-
-					// re-create the renderer
-					renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer)
-						.autoClose(replace = renderer)
-
-					// re-creating WindowRenderer re-initializes ImGUI, so update the slide image descriptors
-					for (info in slideWindows.values) {
-						info.updateImageDesc()
-					}
+		// render the slides (if possible), and collect the semaphores of the ones we rendered
+		val slideSemaphores = slideWindows.values.mapNotNull { slidewin ->
+			slidewin.resizeIfNeeded()
+			slidewin.slide.lock { slide ->
+				if (slidewin.render(slide, slidewin.renderFinished)) {
+					return@mapNotNull slidewin.renderFinished
+				} else {
+					// slide doesn't have size info from the GUI yet
+					return@mapNotNull null
 				}
 			}
 		}
 
-		// wait for the device to finish before starting cleanup
-		device.waitForIdle()
+		// render the window
+		try {
+			renderer.render(slideSemaphores) {
+
+				if (beginMainMenuBar()) {
+
+					// render window feature menus
+					for (menu in features.menus) {
+						if (beginMenu(menu.name)) {
+							for (feature in menu.features) {
+								feature.menu(this, winCommands)
+							}
+							endMenu()
+						}
+					}
+
+					endMainMenuBar()
+				}
+
+				// render window feature guis
+				for (menu in features.menus) {
+					for (feature in menu.features) {
+						feature.gui(this, winCommands)
+					}
+				}
+
+				// draw the slide sub-windows
+				for (slidewin in slideWindows.values) {
+					slidewin.gui(this)
+				}
+
+				// render exceptions
+				exceptionViewer.gui(this)
+			}
+
+			// cleanup any deferred slide windows
+			if (slideWindowsToClose.isNotEmpty()) {
+
+				// wait for the frame to finish first though
+				device.waitForIdle()
+
+				closeDeferredSlideWindows()
+			}
+
+		} catch (ex: SwapchainOutOfDateException) {
+
+			device.waitForIdle()
+
+			// cleanup any deferred slide windows
+			closeDeferredSlideWindows()
+
+			// re-create the renderer
+			renderer = WindowRenderer(win, vk, device, graphicsQueue, surfaceQueue, surface, renderer)
+					.autoClose(replace = renderer)
+
+			// re-creating WindowRenderer re-initializes ImGUI, so update the slide image descriptors
+			for (info in slideWindows.values) {
+				info.updateImageDesc()
+			}
+		}
 	}
 }
