@@ -71,26 +71,30 @@ class BallAndStick(
 	// render the atoms as spheres
 	override val spheres = object : SphereRenderable {
 
-		override val numVertices get() = sel.size
+		override val numVertices get() = sel.size*4
 		override val verticesSequence get() = molSequence + renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
 			sel.forEachIndexed { atomIndex, atom ->
 
-				// downgrade atom pos to floats for rendering
-				buf.putFloat(atom.pos.x().toFloat())
-				buf.putFloat(atom.pos.y().toFloat())
-				buf.putFloat(atom.pos.z().toFloat())
+				// write all vertex data 4 times
+				for (i in 0 until 4) {
 
-				buf.putFloat(atomRadius)
-				ElementProps[atom].apply {
-					buf.putColor4Bytes(color[colorsMode])
+					// downgrade atom pos to floats for rendering
+					buf.putFloat(atom.pos.x().toFloat())
+					buf.putFloat(atom.pos.y().toFloat())
+					buf.putFloat(atom.pos.z().toFloat())
+
+					buf.putFloat(atomRadius)
+					ElementProps[atom].apply {
+						buf.putColor4Bytes(color[colorsMode])
+					}
+
+					// TODO: allow different indexing strategies (eg residue, molecule)
+					buf.putInt(atomIndex)
+					buf.put(renderEffects[atom])
 				}
-
-				// TODO: allow different indexing strategies (eg residue, molecule)
-				buf.putInt(atomIndex)
-				buf.put(renderEffects[atom])
 			}
 		}
 
@@ -114,33 +118,46 @@ class BallAndStick(
 	// render the bonds as cylinders
 	override val cylinders = object : CylinderRenderable {
 
-		override val numVertices get() = sel.size
+		override val numVertices get() = sel.size*4
 		override val verticesSequence get() = molSequence + renderEffects.sequence
-		override val indicesSequence get() = molSequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
-			sel.forEachIndexed { atomIndex, atom ->
-
-				// downgrade atom pos to floats for rendering
-				buf.putFloat(atom.pos.x().toFloat())
-				buf.putFloat(atom.pos.y().toFloat())
-				buf.putFloat(atom.pos.z().toFloat())
-
-				buf.putFloat(bondRadius)
-				buf.putColor4Bytes(ElementProps[atom].color[colorsMode])
-
-				// TODO: allow different indexing strategies (eg residue, molecule)
-				buf.putInt(atomIndex)
-				buf.put(renderEffects[atom])
-			}
-		}
-
-		override val numIndices get() = bonds.size*2
-
-		override fun fillIndexBuffer(buf: ByteBuffer) {
 			for (bond in bonds) {
-				buf.putInt(bond.i1)
-				buf.putInt(bond.i2)
+				val atomIndices = listOf(bond.i1, bond.i2)
+
+				// write all vertex data 4 times
+				for (i in 0 until 4) {
+
+					for (atomIndex in atomIndices) {
+						val atom = sel[atomIndex]
+
+						// downgrade atom pos to floats for rendering
+						buf.putFloat(atom.pos.x().toFloat())
+						buf.putFloat(atom.pos.y().toFloat())
+						buf.putFloat(atom.pos.z().toFloat())
+					}
+
+					for (atomIndex in atomIndices) {
+						buf.putFloat(bondRadius)
+					}
+
+					for (atomIndex in atomIndices) {
+						val atom = sel[atomIndex]
+
+						buf.putColor4Bytes(ElementProps[atom].color[colorsMode])
+					}
+
+					for (atomIndex in atomIndices) {
+						// TODO: allow different indexing strategies (eg residue, molecule)
+						buf.putInt(atomIndex)
+					}
+
+					for (atomIndex in atomIndices) {
+						val atom = sel[atomIndex]
+
+						buf.put(renderEffects[atom])
+					}
+				}
 			}
 		}
 

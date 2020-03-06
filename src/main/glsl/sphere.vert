@@ -8,10 +8,9 @@ layout(location = 4) in uvec4 inEffect;
 
 layout(location = 0) out vec3 outPosCamera;
 layout(location = 1) out float outRadiusCamera;
-layout(location = 2) out vec2 outRadiusClip;
-layout(location = 3) out vec4 outColor;
-layout(location = 4) out int outIndex;
-layout(location = 5) out uvec4 outEffect;
+layout(location = 2) out vec4 outColor;
+layout(location = 3) out int outIndex;
+layout(location = 4) out uvec4 outEffect;
 
 #include "view.glsl"
 
@@ -29,11 +28,19 @@ void main() {
 	vec4 posClip = cameraToClip(posCamera);
 	vec2 radiusClip = cameraPerpendicularToClip(radiusCamera, posCamera.z);
 
+	// offset vertices by the radius to make a billboard quad, in triangle strip order, with ccw facing
+	if ((gl_VertexIndex & 0x02) != 0) {
+		radiusClip.x = -radiusClip.x;
+	}
+	if ((gl_VertexIndex & 0x01) != 0) {
+		radiusClip.y = -radiusClip.y;
+	}
+	posClip += vec4(radiusClip, 0, 0);
+
 	// send outputs to next shader stages
 	gl_Position = posClip;
 	outPosCamera = posCamera;
 	outRadiusCamera = inRadiusWorld;
-	outRadiusClip = radiusClip;
 	outColor = inColor;
 	outIndex = inIndex;
 	outEffect = inEffect;

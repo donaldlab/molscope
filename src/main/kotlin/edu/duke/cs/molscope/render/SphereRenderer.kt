@@ -1,9 +1,6 @@
 package edu.duke.cs.molscope.render
 
-import cuchaz.kludge.tools.AutoCloser
-import cuchaz.kludge.tools.IntFlags
-import cuchaz.kludge.tools.SIZE_BYTES
-import cuchaz.kludge.tools.diff
+import cuchaz.kludge.tools.*
 import cuchaz.kludge.vulkan.*
 import edu.duke.cs.molscope.shaders.Shaders
 import edu.duke.cs.molscope.view.ColorsMode
@@ -31,9 +28,6 @@ internal class SphereRenderer(
 				device.shaderModule(Shaders["sphere.vert"])
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				device.shaderModule(Shaders["sphere.geom"])
-					.autoClose()
-					.stage("main", ShaderStage.Geometry),
 				device.shaderModule(Shaders["sphere.frag"])
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
@@ -72,7 +66,7 @@ internal class SphereRenderer(
 					)
 				}
 			},
-			inputAssembly = InputAssembly(InputAssembly.Topology.PointList)
+			inputAssembly = InputAssembly(InputAssembly.Topology.TriangleStrip)
 		)
 		.autoClose()
 

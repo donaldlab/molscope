@@ -68,10 +68,16 @@ class VulkanDevice(
 		.asSequence()
 		.sortedBy { if (it.properties.type == PhysicalDevice.Type.DiscreteGpu) 0 else 1 }
 		.first()
+		.apply {
 
+			// check for the features we need
+			if (!features.shaderStorageImageExtendedFormats) {
+				throw UnsupportedOperationException("Your GPU and/or video drivers don't support required image formats")
+			}
+		}
+
+	// flag the features we need for when we create the logical device
 	val deviceFeatures = PhysicalDevice.Features().apply {
-		geometryShader = true
-		independentBlend = true
 		shaderStorageImageExtendedFormats = true
 	}
 }

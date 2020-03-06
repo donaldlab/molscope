@@ -110,25 +110,26 @@ internal class SlideWindow(
 			if (renderablesTracker.changed) {
 
 				// update the occlusion field
-				occlusionField = occlusionCalculator
-					?.Field(
+				occlusionField = occlusionCalculator?.run {
+					Field(
 						// TODO: make configurable?
 						extent = Extent3D(16, 16, 16),
 						gridSubdivisions = 2,
 						renderables = renderables
 					)
-					?.autoClose(replace = occlusionField)
-					?.apply {
+					.autoClose(replace = occlusionField)
+					.apply {
 						updateDescriptorSet(renderer)
 					}
+				}
 			}
 
-			// get the occlusion field
-			// if we don't have one, we must not have any geometry either, so skip the render
-			val occlusionField = occlusionField ?: return false
-			occlusionField.active = rendererInfo.renderer.settings.ambientOcclusionWeight > 0f
-			if (occlusionField.needsProcessing) {
-				occlusionField.process()
+			// process the occlusion field if needed
+			occlusionField?.run {
+				active = rendererInfo.renderer.settings.ambientOcclusionWeight > 0f
+				if (needsProcessing) {
+					process()
+				}
 			}
 
 			renderer.render(slide, renderables, occlusionField, renderFinished)

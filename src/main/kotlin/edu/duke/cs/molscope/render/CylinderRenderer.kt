@@ -31,48 +31,70 @@ internal class CylinderRenderer(
 				device.shaderModule(Shaders["cylinder.vert"])
 					.autoClose()
 					.stage("main", ShaderStage.Vertex),
-				device.shaderModule(Shaders["cylinder.geom"])
-					.autoClose()
-					.stage("main", ShaderStage.Geometry),
 				device.shaderModule(Shaders["cylinder.frag"])
 					.autoClose()
 					.stage("main", ShaderStage.Fragment)
 			),
 			vertexInput = VertexInput {
-				binding(stride = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES*2) {
+				binding(stride = Float.SIZE_BYTES*8 + Byte.SIZE_BYTES*8 + Int.SIZE_BYTES*4) {
 					// pos
 					attribute(
 						location = 0,
 						format = Image.Format.R32G32B32_SFLOAT,
 						offset = 0
 					)
-					// radius
 					attribute(
 						location = 1,
-						format = Image.Format.R32_SFLOAT,
+						format = Image.Format.R32G32B32_SFLOAT,
 						offset = Float.SIZE_BYTES*3
+					)
+					// radius
+					attribute(
+						location = 2,
+						format = Image.Format.R32_SFLOAT,
+						offset = Float.SIZE_BYTES*6
+					)
+					attribute(
+						location = 3,
+						format = Image.Format.R32_SFLOAT,
+						offset = Float.SIZE_BYTES*7
 					)
 					// color
 					attribute(
-						location = 2,
+						location = 4,
 						format = Image.Format.R8G8B8A8_UNORM,
-						offset = Float.SIZE_BYTES*4
+						offset = Float.SIZE_BYTES*8
+					)
+					attribute(
+						location = 5,
+						format = Image.Format.R8G8B8A8_UNORM,
+						offset = Float.SIZE_BYTES*8 + Byte.SIZE_BYTES*4
 					)
 					// target index
 					attribute(
-						location = 3,
+						location = 6,
 						format = Image.Format.R32_SINT,
-						offset = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4
+						offset = Float.SIZE_BYTES*8 + Byte.SIZE_BYTES*8
+					)
+					attribute(
+						location = 7,
+						format = Image.Format.R32_SINT,
+						offset = Float.SIZE_BYTES*8 + Byte.SIZE_BYTES*8 + Int.SIZE_BYTES
 					)
 					// effects
 					attribute(
-						location = 4,
+						location = 8,
 						format = Image.Format.R8G8B8A8_UINT,
-						offset = Float.SIZE_BYTES*4 + Byte.SIZE_BYTES*4 + Int.SIZE_BYTES
+						offset = Float.SIZE_BYTES*8 + Byte.SIZE_BYTES*8 + Int.SIZE_BYTES*2
+					)
+					attribute(
+						location = 9,
+						format = Image.Format.R8G8B8A8_UINT,
+						offset = Float.SIZE_BYTES*8 + Byte.SIZE_BYTES*8 + Int.SIZE_BYTES*3
 					)
 				}
 			},
-			inputAssembly = InputAssembly(InputAssembly.Topology.LineList)
+			inputAssembly = InputAssembly(InputAssembly.Topology.TriangleStrip)
 		)
 		.autoClose()
 
@@ -101,28 +123,12 @@ internal class CylinderRenderer(
 		}
 		var vertexBuf = VBO(src.numVertices).autoClose()
 
-		inner class IBO(val numIndices: Int) : AutoCloseable {
-
-			val buf = device
-				.buffer(
-					size = bufSize(numIndices*graphicsPipeline.vertexInput.size),
-					usage = IntFlags.of(Buffer.Usage.IndexBuffer, Buffer.Usage.TransferDst)
-				)
-			val allocated = buf.allocateDevice()
-
-			override fun close() {
-				buf.close()
-				allocated.close()
-			}
-		}
-		var indexBuf = IBO(src.numIndices).autoClose()
-
 		private val dirtyness = Dirtyness()
 
 		fun update(colorsMode: ColorsMode) {
 
 			// track state changes
-			dirtyness.update(colorsMode, src.verticesSequence, src.indicesSequence)
+			dirtyness.update(colorsMode, src.verticesSequence)
 			if (!dirtyness.isDirty) {
 				return
 			}
@@ -131,17 +137,10 @@ internal class CylinderRenderer(
 			if (vertexBuf.numVertices < src.numVertices) {
 				vertexBuf = VBO(src.numVertices).autoClose(replace = vertexBuf)
 			}
-			if (indexBuf.numIndices < src.numIndices) {
-				indexBuf = IBO(src.numIndices).autoClose(replace = indexBuf)
-			}
 
 			// update buffers
 			vertexBuf.allocated.transferHtoD { buf ->
 				src.fillVertexBuffer(buf, colorsMode)
-				buf.flip()
-			}
-			indexBuf.allocated.transferHtoD { buf ->
-				src.fillIndexBuffer(buf)
 				buf.flip()
 			}
 		}
@@ -177,7 +176,7 @@ internal class CylinderRenderer(
 
 	fun render(cmdbuf: CommandBuffer, src: CylinderRenderable, viewIndex: Int) = cmdbuf.apply {
 
-		if (src.numIndices > 0) {
+		if (src.numVertices > 0) {
 
 			val entry = entries[src] ?: throw NoSuchElementException("call update() with this source, before render()")
 
@@ -185,11 +184,10 @@ internal class CylinderRenderer(
 			bindPipeline(graphicsPipeline)
 			bindDescriptorSet(slideRenderer.mainDescriptorSet, graphicsPipeline)
 			bindVertexBuffer(entry.vertexBuf.buf)
-			bindIndexBuffer(entry.indexBuf.buf, CommandBuffer.IndexType.UInt32)
 			pushConstants(graphicsPipeline, IntFlags.of(ShaderStage.Fragment),
 				viewIndex, 0, 0, 0
 			)
-			drawIndexed(indices = src.numIndices)
+			draw(vertices = src.numVertices)
 		}
 	}
 }
@@ -200,10 +198,6 @@ interface CylinderRenderable {
 	val numVertices: Int
 	val verticesSequence: Int
 	fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode)
-
-	val numIndices: Int
-	val indicesSequence: Int
-	fun fillIndexBuffer(buf: ByteBuffer)
 
 	val boundingBox: AABBf? get() = null
 	val numOccluders: Int get() = 0

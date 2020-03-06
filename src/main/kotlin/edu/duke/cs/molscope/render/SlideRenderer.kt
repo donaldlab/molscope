@@ -476,7 +476,7 @@ internal class SlideRenderer(
 
 	private val occlusionRenderer = OcclusionRenderer(this).autoClose()
 
-	fun render(slide: Slide.Locked, renderables: ViewRenderables, occlusionField: OcclusionCalculator.Field, renderFinished: Semaphore? = null) {
+	fun render(slide: Slide.Locked, renderables: ViewRenderables, occlusionField: OcclusionCalculator.Field? = null, renderFinished: Semaphore? = null) {
 
 		sphereRenderer.update(renderables.spheres)
 		cylinderRenderer.update(renderables.cylinders)
@@ -562,7 +562,9 @@ internal class SlideRenderer(
 			// upload the cursor buffer
 			copyBuffer(cursorBufHost.buffer, cursorBufDevice.buffer)
 
-			occlusionRenderer.barriers(this, occlusionField)
+			if (occlusionField != null) {
+				occlusionRenderer.barriers(this, occlusionField)
+			}
 
 			// draw all the views
 			beginRenderPass(
@@ -586,7 +588,7 @@ internal class SlideRenderer(
 					view.cylinders?.let { cylinderRenderer.render(this, it, i) }
 				}
 			}
-			if (settings.showOcclusionField) {
+			if (occlusionField != null && settings.showOcclusionField) {
 				occlusionRenderer.render(this, occlusionField)
 			}
 			endRenderPass()

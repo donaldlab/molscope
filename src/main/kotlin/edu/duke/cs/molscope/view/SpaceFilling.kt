@@ -40,26 +40,30 @@ class SpaceFilling(
 
 	override val spheres = object : SphereRenderable {
 		
-		override val numVertices get() = sel.size
+		override val numVertices get() = sel.size*4
 		override val verticesSequence get() = molSequence + renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
 			sel.forEachIndexed { atomIndex, atom ->
 
-				// downgrade atom pos to floats for rendering
-				buf.putFloat(atom.pos.x.toFloat())
-				buf.putFloat(atom.pos.y.toFloat())
-				buf.putFloat(atom.pos.z.toFloat())
+				// write all vertex data 4 times
+				for (i in 0 until 4) {
 
-				ElementProps[atom].apply {
-					buf.putFloat(radius)
-					buf.putColor4Bytes(color[colorsMode])
+					// downgrade atom pos to floats for rendering
+					buf.putFloat(atom.pos.x.toFloat())
+					buf.putFloat(atom.pos.y.toFloat())
+					buf.putFloat(atom.pos.z.toFloat())
+
+					ElementProps[atom].apply {
+						buf.putFloat(radius)
+						buf.putColor4Bytes(color[colorsMode])
+					}
+
+					// TODO: allow different indexing strategies (eg residue, molecule)
+					buf.putInt(atomIndex)
+					buf.put(renderEffects[atom])
 				}
-
-				// TODO: allow different indexing strategies (eg residue, molecule)
-				buf.putInt(atomIndex)
-				buf.put(renderEffects[atom])
 			}
 		}
 
