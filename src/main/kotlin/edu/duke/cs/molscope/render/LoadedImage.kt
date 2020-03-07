@@ -5,14 +5,13 @@ import cuchaz.kludge.tools.AutoCloser
 import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.tools.position
 import cuchaz.kludge.vulkan.*
-import org.lwjgl.vulkan.VK10
 import java.awt.image.BufferedImage
-import java.awt.image.DataBufferByte
 import javax.imageio.ImageIO
 
 
 class LoadedImage internal constructor(
 	internal val queue: Queue,
+	/** 4-byte pixels, tightly-packed, top row first */
 	rgba: ByteArray,
 	val width: Int,
 	val height: Int
@@ -20,7 +19,7 @@ class LoadedImage internal constructor(
 
 	internal constructor(queue: Queue, image: BufferedImage) : this(
 		queue,
-		(image.raster.dataBuffer as DataBufferByte).data,
+		image.toRGBA(),
 		image.width,
 		image.height
 	)
@@ -40,10 +39,11 @@ class LoadedImage internal constructor(
 			extent = Extent3D(width, height, 1),
 			format = Image.Format.R8G8B8A8_UNORM,
 			usage = IntFlags.of(Image.Usage.TransferDst, Image.Usage.Sampled),
-			tiling = Image.Tiling.Linear
+			tiling = Image.Tiling.Optimal
 			// TODO: Optimal tiling is better for rendering,
 			//  but the HtoD transfer doesn't re-tile from Linear to Optimal
 			//  so would need to find a way to do that somehow to support Optimal tiling
+			//  also, OSX seems to work with Optimal tiling correctly somehow, but not linear tiling
 		)
 		.autoClose()
 		.allocateDevice()
@@ -69,7 +69,7 @@ class LoadedImage internal constructor(
 						srcPitch
 					)
 
-					// fill the rest of the row with 0s
+					// skip to the next row
 					buf.position += dstPitch - srcPitch
 				}
 				buf.flip()
@@ -99,15 +99,7 @@ class LoadedImage internal constructor(
 	}
 
 	val view = gpuImage.image
-		.view(
-			// ImageIO has the color channels ABGR order for some reason
-			components = Image.Components(
-				Image.Swizzle.A,
-				Image.Swizzle.B,
-				Image.Swizzle.G,
-				Image.Swizzle.R
-			)
-		)
+		.view()
 		.autoClose()
 
 	// make a sampler
@@ -122,9 +114,37 @@ class LoadedImage internal constructor(
 }
 
 /**
- * Convert the image bytes into an rgba buffer
+ * Convert the image bytes into an ImageIO Buffer
  */
 fun ByteArray.toBuffer(): BufferedImage =
 	inputStream().use { stream ->
 		ImageIO.read(stream)
 	}
+
+/**
+ * Convert an ImageIO buffer to a tightly-packed RGBA array.
+ *
+ * As far as image-processing functions go, this will be super duper slow.
+ * Hopefully, that won't be a bottleneck for us though.
+ */
+fun BufferedImage.toRGBA(): ByteArray {
+
+	val bytes = ByteArray(width*height*4)
+	var i = 0
+
+	for (y in 0 until height) {
+		for (x in 0 until width) {
+			val argb = getRGB(x, y)
+			val a = (argb shr 8*3) and 0xff
+			val r = (argb shr 8*2) and 0xff
+			val g = (argb shr 8*1) and 0xff
+			val b = (argb shr 8*0) and 0xff
+			bytes[i++] = r.toByte()
+			bytes[i++] = g.toByte()
+			bytes[i++] = b.toByte()
+			bytes[i++] = a.toByte()
+		}
+	}
+
+	return bytes
+}
