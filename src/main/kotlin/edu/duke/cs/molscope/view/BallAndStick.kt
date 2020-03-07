@@ -118,7 +118,7 @@ class BallAndStick(
 	// render the bonds as cylinders
 	override val cylinders = object : CylinderRenderable {
 
-		override val numVertices get() = sel.size*4
+		override val numVertices get() = bonds.size*4
 		override val verticesSequence get() = molSequence + renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
