@@ -68,16 +68,29 @@ class VulkanDevice(
 		.asSequence()
 		.sortedBy { if (it.properties.type == PhysicalDevice.Type.DiscreteGpu) 0 else 1 }
 		.first()
-		.apply {
-
-			// check for the features we need
-			if (!features.shaderStorageImageExtendedFormats) {
-				throw UnsupportedOperationException("Your GPU and/or video drivers don't support required image formats")
-			}
-		}
 
 	// flag the features we need for when we create the logical device
 	val deviceFeatures = PhysicalDevice.Features().apply {
+
+		// required features
+
+		// image formats
+		if (!physicalDevice.features.shaderStorageImageExtendedFormats) {
+			throw UnsupportedOperationException("Your GPU and/or video drivers don't support required image formats")
+		}
 		shaderStorageImageExtendedFormats = true
+
+		// independent blend
+		if (!physicalDevice.features.independentBlend) {
+			throw UnsupportedOperationException("Your GPU and/or video drivers don't support independent blending, which is required for g-buffer rendering techniques")
+		}
+		independentBlend = true
+
+		// optional features
+
+		// geometry shaders
+		if (physicalDevice.features.geometryShader) {
+			geometryShader = true
+		}
 	}
 }

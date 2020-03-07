@@ -416,7 +416,7 @@ internal class SlideRenderer(
 
 			// always overwrite the dest (framebuf) values, so turn off blending
 			indexAttachment to null,
-			indexAttachment to null
+			effectsAttachment to null
 		),
 		depthStencilState = DepthStencilState()
 	)
