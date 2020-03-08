@@ -398,7 +398,7 @@ internal class SlideRenderer(
 			extent.height.toFloat()
 		)),
 		scissors = listOf(rect),
-		colorAttachmentBlends = mapOf(
+		colorAttachmentBlends = listOf(
 
 			// use typical alpha blending
 			colorAttachment to ColorBlendState.Attachment(
@@ -414,9 +414,9 @@ internal class SlideRenderer(
 				)
 			),
 
-			// always overwrite the dest (framebuf) values, so turn off blending
-			indexAttachment to null,
-			effectsAttachment to null
+			// disable blending to always overwrite the dest (framebuf) values
+			indexAttachment to ColorBlendState.Attachment(),
+			effectsAttachment to ColorBlendState.Attachment()
 		),
 		depthStencilState = DepthStencilState()
 	)
@@ -454,7 +454,7 @@ internal class SlideRenderer(
 				extent.height.toFloat()
 			)),
 			scissors = listOf(rect),
-			colorAttachmentBlends = mapOf(
+			colorAttachmentBlends = listOf(
 				colorAttachment to ColorBlendState.Attachment(
 					color = ColorBlendState.Attachment.Part(
 						src = BlendFactor.SrcAlpha,
