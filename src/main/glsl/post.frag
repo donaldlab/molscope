@@ -39,7 +39,24 @@ const int DIR_YP = 3;
 const int NUM_DIRS = 4;
 
 
-vec4 applyEffects(vec4 color, Effects effects, Effects neighborEffects[NUM_DIRS], ivec2 indices, ivec2 neighborIndices[NUM_DIRS]) {
+struct NeighborEffects {
+	Effects xm;
+	Effects xp;
+	Effects ym;
+	Effects yp;
+};
+
+Effects getEffects(NeighborEffects neighborEffects, uint dir) {
+	switch (dir) {
+		case DIR_XM: return neighborEffects.xm;
+		case DIR_XP: return neighborEffects.xp;
+		case DIR_YM: return neighborEffects.ym;
+		case DIR_YP: return neighborEffects.yp;
+	}
+	return NOP_EFFECTS;
+}
+
+vec4 applyEffects(vec4 color, Effects effects, NeighborEffects neighborEffects, ivec2 indices, ivec2 neighborIndices[NUM_DIRS]) {
 
 	// implement highlights
 	if ((effects.flags & EFFECT_HIGHLIGHT) != 0) {
@@ -60,9 +77,10 @@ vec4 applyEffects(vec4 color, Effects effects, Effects neighborEffects[NUM_DIRS]
 
 	// implement outsets
 	for (uint i=0; i<NUM_DIRS; i++) {
-		if ((neighborEffects[i].flags & EFFECT_OUTSET) != 0) {
+		Effects effects = getEffects(neighborEffects, i);
+		if ((effects.flags & EFFECT_OUTSET) != 0) {
 			if (neighborIndices[i] != indices) {
-				color.rgb = neighborEffects[i].color;
+				color.rgb = effects.color;
 			}
 		}
 	}
@@ -118,7 +136,9 @@ void main() {
 	neighborIndices[DIR_XP] = loadIndices(p + ivec2(+1,  0));
 	neighborIndices[DIR_YM] = loadIndices(p + ivec2( 0, -1));
 	neighborIndices[DIR_YP] = loadIndices(p + ivec2( 0, +1));
-	Effects neighborEffects[NUM_DIRS] = { NOP_EFFECTS, NOP_EFFECTS, NOP_EFFECTS, NOP_EFFECTS };
+
+	// start with NOP neighbor effects
+	NeighborEffects neighborEffects = { NOP_EFFECTS, NOP_EFFECTS, NOP_EFFECTS, NOP_EFFECTS };
 
 	// apply cursor effects if needed
 	if (inCursor.isActive == 1 && inCursor.indices == indices && inCursor.indices != NULL_INDICES) {
@@ -126,10 +146,10 @@ void main() {
 	}
 
 	// but only use neighboring effects for per-pixel effects
-	neighborEffects[DIR_XM] = loadEffects(p + ivec2(-1,  0));
-	neighborEffects[DIR_XP] = loadEffects(p + ivec2(+1,  0));
-	neighborEffects[DIR_YM] = loadEffects(p + ivec2( 0, -1));
-	neighborEffects[DIR_YP] = loadEffects(p + ivec2( 0, +1));
+	neighborEffects.xm = loadEffects(p + ivec2(-1,  0));
+	neighborEffects.xp = loadEffects(p + ivec2(+1,  0));
+	neighborEffects.ym = loadEffects(p + ivec2( 0, -1));
+	neighborEffects.yp = loadEffects(p + ivec2( 0, +1));
 
 	// apply per-pixel effects
 	color = applyEffects(color, loadEffects(p), neighborEffects, indices, neighborIndices);
