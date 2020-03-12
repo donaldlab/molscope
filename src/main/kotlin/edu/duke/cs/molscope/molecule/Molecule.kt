@@ -143,6 +143,32 @@ open class Molecule(
 					}
 				}
 			}
+
+		fun connectedComponents(amongAtoms: Collection<Atom> = atoms): List<Set<Atom>> {
+
+			val out = ArrayList<Set<Atom>>()
+
+			val atomQueue = amongAtoms.toIdentitySet()
+			while (atomQueue.isNotEmpty()) {
+
+				// get an arbitrary atom we haven't seen yet
+				val atom = atomQueue.first()
+
+				// gather its connected component
+				val component = dfs(
+					source = atom,
+					visitSource = true,
+					shouldVisit = { _, to, _ -> to in atomQueue }
+				)
+				.map { it.atom }
+				.toIdentitySet()
+
+				atomQueue.removeAll(component)
+				out.add(component)
+			}
+
+			return out
+		}
 	}
 	val bonds = Bonds()
 
@@ -499,11 +525,11 @@ interface ChainGenerator {
 	fun setUsedIds(ids: Collection<String>)
 
 	/**
-	 * `nonPolymerMol` is the input molecule to combination. `polyerAtoms` are the
-	 * atoms in the combined Polymer output molecule, which have already been copied from
-	 * `nonPolymerMol`.
+	 * `nonPolymerMol` is the input non-polymer molecule to be combined.
+	 * `polymerMol` is the combined output molecule, with the `polymerAtoms` already added.
+	 * `polyerAtoms` are the atoms in `polymerMol` which have already been copied from `nonPolymerMol`.
 	 */
-	fun generateChain(nonPolymerMol: Molecule, polymerAtoms: List<Atom>): Polymer.Chain
+	fun generateChain(nonPolymerMol: Molecule, polymerMol: Polymer, polymerAtoms: List<Atom>): Polymer.Chain
 }
 
 /**
@@ -589,6 +615,7 @@ fun Collection<Molecule>.combine(
 		for (srcMol in filter { it !is Polymer }) {
 			dstMol.chains.add(chainGenerator.generateChain(
 				srcMol,
+				dstMol,
 				srcMol.atoms.map { atomMap.getBOrThrow(it) }
 			))
 		}
