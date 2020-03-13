@@ -52,7 +52,9 @@ class MenuRenderSettings(private val initialSettings: RenderSettings) : SlideFea
 						}
 					}
 				}
-				sliderFloat("Ambient Occlusion", Ref.of(slidewin.renderSettings::ambientOcclusionWeight), 0f, 4f, "%.2f")
+				// TEMP: disable ambient occlusion, since it can hang the window for a bit
+				//sliderFloat("Ambient Occlusion", Ref.of(slidewin.renderSettings::ambientOcclusionWeight), 0f, 4f, "%.2f")
+				// TODO: optimize ambient occlusion so it's not using a brute force calculation and doesn't chug so hard
 			}
 		}
 	}
