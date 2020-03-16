@@ -244,7 +244,7 @@ class TestMoleculeCombine : SharedSpec({
 
 		val generator = object : ChainGenerator {
 			override fun setUsedIds(ids: Collection<String>) {}
-			override fun generateChain(nonPolymerMol: Molecule, polymerAtoms: List<Atom>) =
+			override fun generateChain(nonPolymerMol: Molecule, polymerMol: Polymer, polymerAtoms: List<Atom>) =
 				Polymer.Chain("B").apply {
 					residues.add(Polymer.Residue(
 						"1",
