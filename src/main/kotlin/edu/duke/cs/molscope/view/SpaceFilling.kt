@@ -125,6 +125,7 @@ class SpaceFilling(
 					Element.Nitrogen -> ElementProps(1.55f, ColorPalette.blue)
 					Element.Oxygen -> ElementProps(1.4f, ColorPalette.red)
 					Element.Sulfur -> ElementProps(1.8f, ColorPalette.yellow)
+					Element.Phosphorus -> ElementProps(1.8f, ColorPalette.orange)
 					else -> ElementProps(2.0f, ColorPalette.darkGrey)
 				}
 		}

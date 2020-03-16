@@ -229,6 +229,7 @@ class BallAndStick(
 					Element.Nitrogen -> ElementProps(ColorPalette.blue)
 					Element.Oxygen -> ElementProps(ColorPalette.red)
 					Element.Sulfur -> ElementProps(ColorPalette.yellow)
+					Element.Phosphorus -> ElementProps(ColorPalette.orange)
 					else -> ElementProps(ColorPalette.darkGrey)
 				}
 		}

@@ -21,7 +21,7 @@ object ColorPalette {
 	val darkGrey = Color(
 		"Dark Grey",
 		dark = ColorRGBA.Int(60, 60, 60),
-		light = ColorRGBA.Int(120, 120, 120)
+		light = ColorRGBA.Int(90, 90, 90)
 	)
 
 	val lightGrey = Color(
@@ -32,25 +32,27 @@ object ColorPalette {
 
 	val red = Color(
 		"Red",
-		dark = ColorRGBA.Int(200, 20, 20),
-		light = ColorRGBA.Int(210, 40, 40)
+		dark = ColorRGBA.Int(237, 0, 0),
+		light = ColorRGBA.Int(204, 0, 0)
 	)
 
 	val blue = Color(
 		"Blue",
-		dark = ColorRGBA.Int(20, 20, 200),
-		light = ColorRGBA.Int(40, 40, 210)
+		dark = ColorRGBA.Int(0, 35, 254),
+		light = ColorRGBA.Int(0, 51, 251)
 	)
 
 	val yellow = Color(
 		"Yellow",
-		dark = ColorRGBA.Int(200, 200, 20),
-		light = ColorRGBA.Int(210, 210, 40)
+		dark = ColorRGBA.Int(255, 255, 0),
+		light = ColorRGBA.Int(232, 205, 0)
 	)
 
-	// TODO: add more colors
-
-	// TODO: refine colors after we get PBR lighting shaders
+	val orange = Color(
+		"Orange",
+		dark = ColorRGBA.Int(255, 85, 0),
+		light = ColorRGBA.Int(255, 102, 25)
+	)
 }
 
 
