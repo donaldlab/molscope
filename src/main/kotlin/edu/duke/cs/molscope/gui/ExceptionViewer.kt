@@ -3,6 +3,8 @@ package edu.duke.cs.molscope.gui
 import cuchaz.kludge.imgui.Commands
 import cuchaz.kludge.tools.IntFlags
 import cuchaz.kludge.tools.Ref
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -58,10 +60,30 @@ class ExceptionViewer {
 					text("No exceptions")
 				}
 
+				popupContextItem("exception-text") {
+					if (button("Copy all")) {
+						copyToClipboard()
+						closeCurrentPopup()
+					}
+				}
+
+				if (button("Copy to Clipboard")) {
+					copyToClipboard()
+				}
+
+				sameLine()
+
 				if (button("Clear")) {
 					clear()
 				}
 			}
 		}
+	}
+
+	private fun copyToClipboard() {
+		val buf = textBuffer ?: return
+		Toolkit.getDefaultToolkit()
+			.systemClipboard
+			.setContents(StringSelection(buf.toString()), null)
 	}
 }
