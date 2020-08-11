@@ -14,8 +14,10 @@ repositories {
 }
 
 dependencies {
-	compile(kotlin("stdlib-jdk8"))
-	compile("cuchaz:kludge")
+
+	implementation(kotlin("stdlib-jdk8"))
+
+	api("com.cuchazinteractive:kludge:0.1")
 
 	testImplementation("io.kotlintest:kotlintest-runner-junit5:3.4.0")
 }
