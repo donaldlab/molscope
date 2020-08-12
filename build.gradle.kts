@@ -10,7 +10,7 @@ group = "edu.duke.cs"
 version = "0.1"
 
 repositories {
-	jcenter()
+	mavenCentral()
 }
 
 dependencies {
