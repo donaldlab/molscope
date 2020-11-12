@@ -28,29 +28,44 @@ open class Molecule(
 			"$name ($type)"
 		}
 
-	open fun copy() = Molecule(name, type).apply {
-		val src = this@Molecule
-		val dst = this@apply
-		src.copyTo(dst)
+	open fun copy() =
+		copyWithMaps().first
+
+	/**
+	 * Copies the molecule and returns a map between the copied atoms,
+	 * where A is this molecule and B is the copy.
+	 */
+	open fun copyWithMaps(): Pair<Molecule,MoleculeMaps> {
+		val src = this
+		val dst = Molecule(name, type)
+		val maps = src.copyTo(dst)
+		return dst to maps
 	}
 
-	fun copyTo(dst: Molecule): Map<Atom,Atom> {
+	fun copyTo(dst: Molecule): MoleculeMaps {
 		val src = this
 
+		val molMap = MoleculeMap()
+		molMap.add(src, dst)
+
 		// copy the atoms
-		val atomMap = src.atoms.list.associate { it to it.copy() }
-		dst.atoms.list.addAll(atomMap.values)
+		val atomMap = AtomMap()
+		for (srcAtom in src.atoms) {
+			val dstAtom = srcAtom.copy()
+			atomMap.add(srcAtom, dstAtom)
+			dst.atoms.add(dstAtom)
+		}
 
 		// copy the bonds
 		for ((otherAtom, otherBondedAtoms) in src.bonds.adjacency) {
-			val atom = atomMap[otherAtom]!!
+			val atom = atomMap.getBOrThrow(otherAtom)
 			for (otherBondedAtom in otherBondedAtoms) {
-				val bondedAtom = atomMap[otherBondedAtom]!!
+				val bondedAtom = atomMap.getBOrThrow(otherBondedAtom)
 				dst.bonds.add(atom, bondedAtom)
 			}
 		}
 
-		return atomMap
+		return MoleculeMaps(molMap, atomMap)
 	}
 
 
@@ -380,7 +395,6 @@ open class Molecule(
 
 		return map
 	}
-
 }
 
 data class Atom(
@@ -400,7 +414,7 @@ data class Atom(
 		 * Creates a map that compares atoms using === rather than ==/equals()
 		 */
 		fun <T> identityMap(): MutableMap<Atom,T> =
-			IdentityHashMap<Atom,T>()
+			IdentityHashMap()
 
 		/**
 		 * Creates a set that compares atoms using === rather than ==/equals()
@@ -413,6 +427,13 @@ data class Atom(
 				addAll(atoms)
 			}
 	}
+
+	fun copy() =
+		copy(
+			element = element,
+			name = name,
+			pos = Vector3d(pos) // make sure to deep copy the position!!
+		)
 }
 
 fun Collection<Atom>.toIdentitySet() =

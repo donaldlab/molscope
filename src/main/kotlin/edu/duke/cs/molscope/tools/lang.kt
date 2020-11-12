@@ -6,6 +6,9 @@ import java.util.*
 val Boolean.toYesNo get() = if (this) "Yes" else "No"
 
 
+fun Any?.identityHashCode() = System.identityHashCode(this)
+
+
 
 private object Assertions {
 	internal val Enabled: Boolean = javaClass.desiredAssertionStatus()
@@ -43,7 +46,18 @@ fun <T> identityHashSetOf(vararg values: T) =
 	}
 
 fun <T,K,V> Iterable<T>.associateIdentity(transform: (T) -> Pair<K,V>): MutableMap<K,V> {
-	return associateTo(IdentityHashMap<K,V>(), transform)
+	return associateTo(IdentityHashMap(), transform)
+}
+
+fun <T,K,V> Iterable<T>.associateIdentityIndexed(transform: (Int, T) -> Pair<K,V>): MutableMap<K,V> {
+	return associateIndexedTo(IdentityHashMap(), transform)
+}
+
+fun <T, K, V, M : MutableMap<in K, in V>> Iterable<T>.associateIndexedTo(destination: M, transform: (Int, T) -> Pair<K,V>): M {
+	for ((index, element) in this.withIndex()) {
+		destination += transform(index, element)
+	}
+	return destination
 }
 
 fun <K1,K2,V> Map<K1,V>.mapKeysIdentity(transform: (Map.Entry<K1,V>) -> K2): MutableMap<K2,V> {

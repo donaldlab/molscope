@@ -1,5 +1,7 @@
 package edu.duke.cs.molscope.molecule
 
+import edu.duke.cs.molscope.tools.Bijection
+
 
 /**
  * An extension to Molecule that supports residues in a chain topology,
@@ -44,29 +46,40 @@ class Polymer(
 
 	val chains: MutableList<Chain> = ArrayList()
 
-	override fun copy() = Polymer(name).apply {
-		val src = this@Polymer
-		val dst = this@apply
-		src.copyTo(dst)
+	override fun copy() =
+		copyWithMaps().first
+
+	override fun copyWithMaps(): Pair<Polymer,MoleculeMaps> {
+		val src = this
+		val dst = Polymer(name)
+		val maps = src.copyTo(dst)
+		return dst to maps
 	}
 
-	fun copyTo(dst: Polymer) {
+	fun copyTo(dst: Polymer): PolymerMaps {
 		val src = this
 
-		val atomMap = src.copyTo(dst as Molecule)
+		val maps = src.copyTo(dst as Molecule)
 
 		// copy all the chains
+		val chainMap = ChainMap()
+		val resMap = ResidueMap()
 		for (srcChain in src.chains) {
 			val dstChain = Chain(srcChain.id)
+			chainMap.add(srcChain, dstChain)
 			for (srcRes in srcChain.residues) {
-				dstChain.residues.add(Residue(
+				val dstRes = Residue(
 					srcRes.id,
 					srcRes.type,
-					srcRes.atoms.map { atomMap[it]!! }
-				))
+					srcRes.atoms.map { maps.atoms.getBOrThrow(it) }
+				)
+				resMap.add(srcRes, dstRes)
+				dstChain.residues.add(dstRes)
 			}
 			dst.chains.add(dstChain)
 		}
+
+		return PolymerMaps(maps, chainMap, resMap)
 	}
 
 	fun findChainOrThrow(id: String) =
@@ -93,3 +106,11 @@ class Polymer(
 		return null
 	}
 }
+
+class ChainMap : Bijection<Polymer.Chain>()
+class ResidueMap : Bijection<Polymer.Residue>()
+class PolymerMaps(
+	maps: MoleculeMaps,
+	val chains: ChainMap,
+	val residues: ResidueMap
+) : MoleculeMaps(maps)

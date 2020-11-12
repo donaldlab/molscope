@@ -1,45 +1,12 @@
 package edu.duke.cs.molscope.molecule
 
-import java.util.*
+import edu.duke.cs.molscope.tools.Bijection
 
 
 /**
  * A bijection between two sets of atoms.
  */
-class AtomMap {
-
-	private val a2b = Atom.identityMap<Atom>()
-	private val b2a = Atom.identityMap<Atom>()
-
-	fun add(a: Atom, b: Atom) {
-		a2b[a] = b
-		b2a[b] = a
-	}
-
-	fun addAll(other: AtomMap) {
-		a2b.putAll(other.a2b)
-		b2a.putAll(other.b2a)
-	}
-
-	fun getB(a: Atom) = a2b[a]
-	fun getA(b: Atom) = b2a[b]
-
-	fun getBOrThrow(a: Atom) =
-		getB(a) ?: throw NoSuchElementException("atom $a is not in the A side")
-	fun getAOrThrow(b: Atom) =
-		getA(b) ?: throw NoSuchElementException("atom $b is not in the B side")
-
-	fun removeA(a: Atom) {
-		val b = getBOrThrow(a)
-		a2b.remove(a)
-		b2a.remove(b)
-	}
-
-	fun removeB(b: Atom) {
-		val a = getAOrThrow(b)
-		b2a.remove(b)
-		a2b.remove(a)
-	}
+class AtomMap : Bijection<Atom>() {
 
 	companion object {
 
@@ -50,4 +17,14 @@ class AtomMap {
 				}
 			}
 	}
+}
+
+class MoleculeMap : Bijection<Molecule>()
+
+open class MoleculeMaps(
+	val mols: MoleculeMap,
+	val atoms: AtomMap
+) {
+
+	constructor (other: MoleculeMaps) : this(other.mols, other.atoms)
 }
