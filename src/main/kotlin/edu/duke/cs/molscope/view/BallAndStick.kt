@@ -15,29 +15,32 @@ import java.nio.ByteBuffer
  * views a molecule using the ball and stick convention
  */
 class BallAndStick(
-	override val mol: Molecule,
-	initialSelector: MoleculeSelector = MoleculeSelectors.all
+	mol: Molecule,
+	selector: MoleculeSelector = MoleculeSelectors.all
 ): MoleculeRenderView {
 
-	override var selector = initialSelector
-		set(value) {
-			field = value
-			moleculeChanged()
-		}
-
-	override var isVisible = true
-
-	var sel = selector(mol)
-		private set
-
-	private var molSequence = 0
-	override fun moleculeChanged() {
-		sel = selector(mol)
+	private val info = MoleculeRenderInfo(mol, selector) {
 		updateBonds()
-		molSequence += 1
 	}
 
-	override var renderEffects = MoleculeRenderEffects(mol)
+	// delegate some interface members to the info
+	// TODO: delegation here gets MUCH less verbose if we upgrade to kotlin 1.4
+	// see: https://kotlinlang.org/docs/reference/delegated-properties.html#delegating-to-another-property
+	override var currentMol: Molecule
+		get() = info.mol
+		set(value) { info.mol = value }
+	override var selector: MoleculeSelector
+		get() = info.selector
+		set(value) { info.selector = value }
+	override fun moleculeChanged() = info.moleculeChanged()
+	override val renderEffects: MoleculeRenderEffects
+		get() = info.renderEffects
+	override var isVisible: Boolean
+		get() = info.isVisible
+		set(value) { info.isVisible = value }
+
+	override val molStack = MoleculeRenderStack(mol, info)
+
 
 	// copy all the bonds (in the selection) as a list
 	data class Bond(val i1: Int, val i2: Int)
@@ -45,9 +48,9 @@ class BallAndStick(
 
 	private fun updateBonds() {
 		bonds.clear()
-		sel.forEachIndexed { i1, a1 ->
-			for (a2 in mol.bonds.bondedAtoms(a1)) {
-				val i2 = sel.indexOf(a2)
+		info.selectedAtoms.forEachIndexed { i1, a1 ->
+			for (a2 in currentMol.bonds.bondedAtoms(a1)) {
+				val i2 = info.selectedAtoms.indexOf(a2)
 				if (i2 < 0) {
 					continue
 				}
@@ -71,12 +74,12 @@ class BallAndStick(
 	// render the atoms as spheres
 	override val spheres = object : SphereRenderable {
 
-		override val numVertices get() = sel.size*4
-		override val verticesSequence get() = molSequence + renderEffects.sequence
+		override val numVertices get() = info.selectedAtoms.size*4
+		override val verticesSequence get() = info.sequence + renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
-			sel.forEachIndexed { atomIndex, atom ->
+			info.selectedAtoms.forEachIndexed { atomIndex, atom ->
 
 				// write all vertex data 4 times
 				for (i in 0 until 4) {
@@ -100,11 +103,11 @@ class BallAndStick(
 
 		override val boundingBox get() = calcBoundingBox()
 
-		override val numOccluders get() = sel.size
+		override val numOccluders get() = info.selectedAtoms.size
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
-			for (atom in sel) {
+			for (atom in info.selectedAtoms) {
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x.toFloat())
@@ -119,7 +122,7 @@ class BallAndStick(
 	override val cylinders = object : CylinderRenderable {
 
 		override val numVertices get() = bonds.size*4
-		override val verticesSequence get() = molSequence + renderEffects.sequence
+		override val verticesSequence get() = info.sequence + renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 			for (bond in bonds) {
@@ -129,7 +132,7 @@ class BallAndStick(
 				for (i in 0 until 4) {
 
 					for (atomIndex in atomIndices) {
-						val atom = sel[atomIndex]
+						val atom = info.selectedAtoms[atomIndex]
 
 						// downgrade atom pos to floats for rendering
 						buf.putFloat(atom.pos.x().toFloat())
@@ -142,7 +145,7 @@ class BallAndStick(
 					}
 
 					for (atomIndex in atomIndices) {
-						val atom = sel[atomIndex]
+						val atom = info.selectedAtoms[atomIndex]
 
 						buf.putColor4Bytes(ElementProps[atom].color[colorsMode])
 					}
@@ -153,7 +156,7 @@ class BallAndStick(
 					}
 
 					for (atomIndex in atomIndices) {
-						val atom = sel[atomIndex]
+						val atom = info.selectedAtoms[atomIndex]
 
 						buf.put(renderEffects[atom])
 					}
@@ -167,8 +170,8 @@ class BallAndStick(
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 			for (bond in bonds) {
-				val atom1 = sel[bond.i1]
-				val atom2 = sel[bond.i2]
+				val atom1 = info.selectedAtoms[bond.i1]
+				val atom2 = info.selectedAtoms[bond.i2]
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom1.pos.x().toFloat())
@@ -188,7 +191,7 @@ class BallAndStick(
 
 			val r = atomRadius
 
-			sel.forEachIndexed { i, atom ->
+			info.selectedAtoms.forEachIndexed { i, atom ->
 
 				val x = atom.pos.x.toFloat()
 				val y = atom.pos.y.toFloat()
@@ -205,7 +208,7 @@ class BallAndStick(
 		}
 
 
-	override fun getIndexed(index: Int) = sel.getOrNull(index)
+	override fun getIndexed(index: Int) = info.selectedAtoms.getOrNull(index)
 	// TODO: allow indexing other things?
 
 	companion object {

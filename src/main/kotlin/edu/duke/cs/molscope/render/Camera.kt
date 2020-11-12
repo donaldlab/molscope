@@ -202,7 +202,7 @@ class Camera internal constructor(
 			// get the max radius from the views
 			views
 				.filterIsInstance<MoleculeRenderView>()
-				.flatMap { it.mol.atoms }
+				.flatMap { it.currentMol.atoms }
 				.map { it.pos.toFloat().distanceSquared(target) }
 				.max()
 				?.sqrt()

@@ -746,7 +746,7 @@ class RenderSettings {
 		// get atom distances to the camera
 		val distances = views
 			.filterIsInstance<MoleculeRenderView>()
-			.flatMap { it.mol.atoms }
+			.flatMap { it.currentMol.atoms }
 			.map { it.pos.toFloat().sub(camera.pos).parallelTo(camera.look).lengthSquared() }
 
 		if (distances.isEmpty()) {

@@ -83,7 +83,7 @@ class CameraTool : SlideFeature {
 
 		// get the atom, if any
 		val view = target.view as? MoleculeRenderView ?: return
-		val mol = view.mol
+		val mol = view.currentMol
 		val atom = target.target as? Atom ?: return
 
 		contextMenu.add {

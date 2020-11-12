@@ -51,7 +51,16 @@ fun ByteBuffer.put(effect: RenderEffect?) {
 	}
 }
 
-class MoleculeRenderEffects(val mol: Molecule) {
+class MoleculeRenderEffects(mol: Molecule) {
+
+	var mol: Molecule = mol
+		set(value) {
+			field = value
+			sequence += 1
+			for (writer in writers) {
+				writer.clear()
+			}
+		}
 
 	inner class Writer : AutoCloseable {
 

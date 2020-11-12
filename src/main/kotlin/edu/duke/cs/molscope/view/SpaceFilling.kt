@@ -15,37 +15,39 @@ import java.nio.ByteBuffer
  */
 // TODO: optimize molecule transformations so we don't have to re-create the whole view for a large molecule?
 class SpaceFilling(
-	override val mol: Molecule,
-	initialSelector: MoleculeSelector = MoleculeSelectors.all
+	mol: Molecule,
+	selector: MoleculeSelector = MoleculeSelectors.all
 ): MoleculeRenderView {
 
-	override var selector = initialSelector
-		set(value) {
-			field = value
-			moleculeChanged()
-		}
+	private val info = MoleculeRenderInfo(mol, selector)
 
-	override var isVisible = true
+	// delegate some interface members to the info
+	// TODO: delegation here gets MUCH less verbose if we upgrade to kotlin 1.4
+	// see: https://kotlinlang.org/docs/reference/delegated-properties.html#delegating-to-another-property
+	override var currentMol: Molecule
+		get() = info.mol
+		set(value) { info.mol = value }
+	override var selector: MoleculeSelector
+		get() = info.selector
+		set(value) { info.selector = value }
+	override fun moleculeChanged() = info.moleculeChanged()
+	override val renderEffects: MoleculeRenderEffects
+		get() = info.renderEffects
+	override var isVisible: Boolean
+		get() = info.isVisible
+		set(value) { info.isVisible = value }
 
-	var sel = selector(mol)
-		private set
+	override val molStack = MoleculeRenderStack(mol, info)
 
-	private var molSequence = 0
-	override fun moleculeChanged() {
-		sel = selector(mol)
-		molSequence += 1
-	}
-
-	override var renderEffects = MoleculeRenderEffects(mol)
 
 	override val spheres = object : SphereRenderable {
 		
-		override val numVertices get() = sel.size*4
-		override val verticesSequence get() = molSequence + renderEffects.sequence
+		override val numVertices get() = info.selectedAtoms.size*4
+		override val verticesSequence get() = info.sequence + renderEffects.sequence
 
 		override fun fillVertexBuffer(buf: ByteBuffer, colorsMode: ColorsMode) {
 
-			sel.forEachIndexed { atomIndex, atom ->
+			info.selectedAtoms.forEachIndexed { atomIndex, atom ->
 
 				// write all vertex data 4 times
 				for (i in 0 until 4) {
@@ -69,11 +71,11 @@ class SpaceFilling(
 
 		override val boundingBox get() = calcBoundingBox()
 
-		override val numOccluders get() = sel.size
+		override val numOccluders get() = info.selectedAtoms.size
 
 		override fun fillOcclusionBuffer(buf: ByteBuffer) {
 
-			for (atom in sel) {
+			for (atom in info.selectedAtoms) {
 
 				// downgrade atom pos to floats for rendering
 				buf.putFloat(atom.pos.x.toFloat())
@@ -89,7 +91,7 @@ class SpaceFilling(
 
 	override fun calcBoundingBox() =
 		AABBf().apply {
-			sel.forEachIndexed { i, atom ->
+			info.selectedAtoms.forEachIndexed { i, atom ->
 
 				val x = atom.pos.x.toFloat()
 				val y = atom.pos.y.toFloat()
@@ -106,7 +108,7 @@ class SpaceFilling(
 			}
 		}
 
-	override fun getIndexed(index: Int) = sel.getOrNull(index)
+	override fun getIndexed(index: Int) = info.selectedAtoms.getOrNull(index)
 	// TODO: allow indexing other things?
 
 
