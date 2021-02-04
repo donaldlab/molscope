@@ -65,3 +65,14 @@ fun Commands.columns(num: Int, border: Boolean = false, block: WithColumns.() ->
 fun Commands.image(img: LoadedImage) {
 	image(img.descriptor, img.width.toFloat(), img.height.toFloat())
 }
+
+// TODO: move this into Kludge?
+inline fun Commands.listBox(label: String, itemsCount: Int, heightInItems: Int = itemsCount, block: () -> Unit) {
+	if (listBoxHeader(label, itemsCount, heightInItems)) {
+		try {
+			block()
+		} finally {
+			listBoxFooter()
+		}
+	}
+}
