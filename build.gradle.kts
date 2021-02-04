@@ -71,7 +71,8 @@ tasks {
 						commandLine(
 							"glslc",
 							"--target-env=vulkan1.0",
-							"--target-spv=spv1.0",
+							// some compilers don't have this flag, but it's redundant with vulkan1.0 anyway
+							//"--target-spv=spv1.0",
 							"-Werror",
 							"-x", "glsl",
 							"-o", outFile.path,

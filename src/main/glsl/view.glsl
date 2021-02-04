@@ -63,25 +63,27 @@ vec3 cameraToWorld(vec3 v) {
 // right-handed axis system: x+right, y+down, z+away
 // camera -> NDC is perspective projection
 
+// on world coords, if z is away, and y is up, RHR puts x pointing left
+// going from camera to NDC coords means moving:
+//   y from up to down
+//   x from left to right
+// so negate both x and y components together
+
 vec3 cameraToNDC(vec3 v) {
 	vec2 viewSize = view.windowSize/view.magnification;
-	v = vec3(
-		2.0*v.xy*view.zNearCamera/viewSize/v.z,
+	return vec3(
+		-2.0*v.xy*view.zNearCamera/viewSize/v.z,
 		(v.z - view.zNearCamera)/(view.zFarCamera - view.zNearCamera)
 	);
-	v.y = -v.y;
-	return v;
 }
 
 vec3 NDCToCamera(vec3 v) {
 	vec2 viewSize = view.windowSize/view.magnification;
 	float zCamera = v.z*(view.zFarCamera - view.zNearCamera) + view.zNearCamera;
-	v = vec3(
-		v.xy*zCamera*viewSize/2/view.zNearCamera,
+	return vec3(
+		-v.xy*zCamera*viewSize/2/view.zNearCamera,
 		zCamera
 	);
-	v.y = -v.y;
-	return v;
 }
 
 

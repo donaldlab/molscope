@@ -137,8 +137,10 @@ class CameraTool : SlideFeature {
 
 	private fun getDragAngle(mouseOffset: Vector2fc, extent: Extent2D): Float {
 		return atan2(
+			// if the camera z points away, and y points up, then x points left,
+			// so flip the screen x coords where x points right
 			mouseOffset.y - extent.height.toFloat()/2,
-			mouseOffset.x - extent.width.toFloat()/2
+			extent.width.toFloat()/2 - mouseOffset.x
 		)
 	}
 
@@ -175,7 +177,9 @@ class CameraTool : SlideFeature {
 			q.identity()
 			when (dragMode) {
 				DragMode.RotateXY -> {
-					q.rotateAxis(slidewin.mouseLeftDragDelta.x/100f, up)
+					// if the camera z points away, and y points up, then x points left,
+					// so flip the screen x coords where x points right
+					q.rotateAxis(-slidewin.mouseLeftDragDelta.x/100f, up)
 					q.rotateAxis(slidewin.mouseLeftDragDelta.y/100f, side)
 				}
 				DragMode.RotateZ -> {
