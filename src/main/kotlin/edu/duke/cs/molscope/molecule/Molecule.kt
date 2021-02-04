@@ -434,6 +434,13 @@ data class Atom(
 			name = name,
 			pos = Vector3d(pos) // make sure to deep copy the position!!
 		)
+
+	/** Make a human-readable label for the atom using information from the molecule */
+	fun label(mol: Molecule): String =
+		(mol as? Polymer)
+			?.findChainAndResidue(this)
+			?.let { (chain, res) -> "${mol.name} ${chain.id} ${res.id} $name" }
+			?: "${mol.name} $name"
 }
 
 fun Collection<Atom>.toIdentitySet() =
